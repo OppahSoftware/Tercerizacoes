@@ -51,6 +51,21 @@
         /* Modal Transitions */
         .modal-enter { opacity: 0; transform: scale(0.95); }
         .modal-enter-active { opacity: 1; transform: scale(1); transition: opacity 200ms, transform 200ms; }
+
+        /* Estilos específicos para Impressão */
+        @media print {
+            @page { margin: 1cm; }
+            body { background-color: #fff !important; }
+            /* Esconde menus, modais e elementos marcados como no-print */
+            nav, #modal-container, .no-print { display: none !important; }
+            /* Remove a barra de rolagem da tabela para imprimir todas as linhas */
+            .table-container { max-height: none !important; overflow: visible !important; }
+            .sticky-header th { position: static !important; }
+            main { padding: 0 !important; margin: 0 !important; max-width: 100% !important; }
+            /* Força o navegador a imprimir as cores de fundo (Verde/Laranja) */
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+            .bg-white { border: 1px solid #e2e8f0 !important; box-shadow: none !important; }
+        }
     </style>
 </head>
 <body class="text-slate-800 antialiased min-h-screen flex flex-col">
@@ -386,7 +401,7 @@
                 <!-- Header with Back Button -->
                 <div class="mb-6 flex items-center justify-between">
                     <div class="flex items-center gap-4">
-                        <button onclick="voltarParaParceiro()" class="text-slate-400 hover:text-slate-600 transition-colors">
+                        <button onclick="voltarParaParceiro()" class="no-print text-slate-400 hover:text-slate-600 transition-colors">
                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
                         </button>
                         <div>
@@ -394,6 +409,10 @@
                             <h2 class="text-2xl font-bold text-slate-900">${o.nome}</h2>
                         </div>
                     </div>
+                    <button onclick="window.print()" class="no-print bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-sm flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                        Imprimir Relatório
+                    </button>
                 </div>
 
                 <!-- Financial Summary Cards -->
@@ -416,7 +435,7 @@
                 </div>
 
                 <!-- Action Tools -->
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6 no-print">
                     <!-- PDF Import -->
                     <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
                         <h3 class="font-bold text-slate-800 mb-3 flex items-center gap-2">
@@ -445,7 +464,7 @@
                 <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
                     <div class="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
                         <h3 class="font-bold text-slate-800">Apontamento e Liberação</h3>
-                        <button onclick="adicionarItemManual()" class="text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded text-sm font-medium transition-colors border border-blue-200 flex items-center gap-1">
+                        <button onclick="adicionarItemManual()" class="no-print text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded text-sm font-medium transition-colors border border-blue-200 flex items-center gap-1">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> Item Manual
                         </button>
                     </div>
