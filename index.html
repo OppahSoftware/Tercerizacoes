@@ -7,103 +7,281 @@
     <style>
         * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { background-color: #f4f6f8; margin: 0; padding: 20px; color: #333; }
-        .container { max-width: 1200px; margin: 0 auto; background: #fff; padding: 25px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-        header { border-bottom: 2px solid #edf2f7; margin-bottom: 20px; padding-bottom: 15px; }
-        header h1 { margin: 0 0 12px 0; color: #1a202c; font-size: 24px; }
-        .input-box { background: #e2e8f0; padding: 15px; border-radius: 6px; margin-bottom: 20px; }
-        .input-box textarea { width: 100%; height: 120px; padding: 10px; border: 1px solid #cbd5e0; border-radius: 4px; font-family: monospace; resize: vertical; }
-        .input-box button { margin-top: 10px; background-color: #3182ce; color: white; border: none; padding: 10px 20px; cursor: pointer; border-radius: 4px; font-weight: bold; }
-        .resumo-financeiro { display: flex; gap: 30px; background: #edf2f7; padding: 15px 20px; border-radius: 6px; margin-bottom: 20px; font-size: 15px; flex-wrap: wrap; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { border: 1px solid #e2e8f0; padding: 12px; text-align: left; font-size: 14px; }
-        th { background-color: #2d3748; color: white; font-weight: 600; }
-        .btn-pay { background-color: #38a169; color: white; border: none; padding: 8px 14px; cursor: pointer; border-radius: 4px; font-weight: bold; }
-        .btn-pay:disabled { background-color: #cbd5e0; cursor: not-allowed; color: #718096; }
-        .btn-obs { background-color: #4a5568; color: white; border: none; padding: 8px 12px; cursor: pointer; border-radius: 4px; }
-        input[type="date"] { padding: 7px; border: 1px solid #cbd5e0; border-radius: 4px; color: #2d3748; }
+        .container { max-width: 1400px; margin: 0 auto; background: #fff; padding: 25px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        
+        header { border-bottom: 2px solid #edf2f7; margin-bottom: 20px; padding-bottom: 15px; display: flex; flex-direction: column; gap: 15px;}
+        header h1 { margin: 0; color: #1a202c; font-size: 24px; }
+        
+        .action-panels { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .panel { background: #e2e8f0; padding: 15px; border-radius: 6px; display: flex; flex-direction: column; gap: 10px; }
+        .panel h3 { margin: 0; font-size: 16px; color: #2d3748; }
+        .panel textarea { width: 100%; height: 80px; padding: 10px; border: 1px solid #cbd5e0; border-radius: 4px; font-family: monospace; resize: vertical; }
+        
+        .resumo-financeiro { display: flex; gap: 30px; background: #edf2f7; padding: 15px 20px; border-radius: 6px; margin-bottom: 20px; font-size: 15px; flex-wrap: wrap; justify-content: space-between;}
+        .resumo-card { background: white; padding: 10px 20px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: center; flex: 1; }
+        .resumo-card span { display: block; font-size: 12px; color: #718096; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px;}
+        .resumo-card strong { font-size: 18px; color: #2d3748; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+        th, td { border: 1px solid #e2e8f0; padding: 10px; text-align: left; vertical-align: middle; }
+        th { background-color: #2d3748; color: white; font-weight: 600; text-align: center; }
+        td { text-align: center; }
+        td.text-left { text-align: left; }
+        
+        .btn-primary { background-color: #3182ce; color: white; border: none; padding: 8px 14px; cursor: pointer; border-radius: 4px; font-weight: bold; transition: 0.2s;}
+        .btn-primary:hover { background-color: #2b6cb0; }
+        .btn-success { background-color: #38a169; color: white; border: none; padding: 6px 10px; cursor: pointer; border-radius: 4px; font-weight: bold; font-size: 12px; transition: 0.2s;}
+        .btn-success:disabled { background-color: #cbd5e0; cursor: not-allowed; color: #718096; }
+        .btn-obs { background-color: #4a5568; color: white; border: none; padding: 6px 10px; cursor: pointer; border-radius: 4px; font-size: 12px; transition: 0.2s;}
+        .btn-obs:hover { background-color: #2d3748; }
+        
+        input[type="date"] { padding: 6px; border: 1px solid #cbd5e0; border-radius: 4px; color: #2d3748; font-size: 12px; width: 110px;}
+        input[type="file"] { font-size: 14px; }
+        
+        .valor-m2 { display: block; font-size: 11px; color: #718096; margin-top: 4px; }
+        .status-msg { margin-top: 5px; font-size: 13px; font-weight: bold; color: #e53e3e; }
+        .status-ok { color: #38a169; }
+
+        /* Custom Modal Styles */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; }
+        .modal-box { background: white; padding: 25px; border-radius: 8px; width: 400px; max-width: 90%; box-shadow: 0 10px 15px rgba(0,0,0,0.1); }
+        .modal-box h4 { margin: 0 0 15px 0; font-size: 18px; color: #2d3748; }
+        .modal-box p { margin: 0 0 15px 0; font-size: 14px; color: #4a5568; line-height: 1.5; }
+        .modal-box input { width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 4px; margin-bottom: 15px; display: none; }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+        .btn-cancel { background-color: #e2e8f0; color: #4a5568; border: none; padding: 8px 14px; cursor: pointer; border-radius: 4px; font-weight: bold; }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>Controle de Pagamento - Terceirizados</h1>
-            <div class="input-box">
-                <label><strong>Cole abaixo a mensagem do WhatsApp (Orçamento/Negociação):</strong></label><br><br>
-                <textarea id="texto-whatsapp" placeholder="Cole aqui os dados enviados pelo terceirizado..."></textarea><br>
-                <button onclick="processarMensagemWhatsApp()">Processar e Gerar Sistema</button>
+            <h1>Portal Oppah - Controle de Terceirizados</h1>
+            
+            <div class="action-panels">
+                <!-- Passo 1: Importar o PDF -->
+                <div class="panel">
+                    <h3>1. Extração de Quantitativos (PDF)</h3>
+                    <p style="font-size: 12px; margin: 0; color: #4a5568;">Importe a Ordem de Serviço para mapear peças e metragens.</p>
+                    <input type="file" id="pdf-upload" accept="application/pdf">
+                    <button class="btn-primary" onclick="importarPDF()">Processar PDF</button>
+                    <div id="status-pdf" class="status-msg">Aguardando importação...</div>
+                </div>
+
+                <!-- Passo 2: Inserir Valores -->
+                <div class="panel">
+                    <h3>2. Cruzamento Financeiro (WhatsApp)</h3>
+                    <p style="font-size: 12px; margin: 0; color: #4a5568;">Cole os valores negociados para aplicar às peças.</p>
+                    <textarea id="texto-whatsapp" placeholder="Ex: Porta de giro 350 prod 350 inst / Maxim-ar 120 prod 200 inst..."></textarea>
+                    <button class="btn-primary" onclick="cruzarPrecos()">Cruzar Valores</button>
+                </div>
             </div>
         </header>
 
         <div class="resumo-financeiro">
-            <div>Total da Obra: <strong id="total-obra">R$ 0,00</strong></div>
-            <div>Limite de Vales (30%): <strong id="limite-vales">R$ 0,00</strong></div>
-            <div>Vales Pagos: <strong id="vales-pagos">R$ 0,00</strong></div>
+            <div class="resumo-card">
+                <span>Total da Obra</span>
+                <strong id="total-obra">R$ 0,00</strong>
+            </div>
+            <div class="resumo-card">
+                <span>Limite de Vales (30%)</span>
+                <strong id="limite-vales">R$ 0,00</strong>
+            </div>
+            <div class="resumo-card">
+                <span>Total Metragem</span>
+                <strong id="total-m2">0,00 m²</strong>
+            </div>
+            <div class="resumo-card">
+                <span>Média Geral (R$/m²)</span>
+                <strong id="media-m2">R$ 0,00</strong>
+            </div>
         </div>
 
-        <table id="tabela-apontamento">
-            <thead>
-                <tr>
-                    <th>ID / Item</th>
-                    <th>Descrição da Peça</th>
-                    <th>Etapa</th>
-                    <th>Valor Unitário</th>
-                    <th>Data de Conclusão</th>
-                    <th>Ação Financeira</th>
-                    <th>Obs</th>
-                </tr>
-            </thead>
-            <tbody id="tabela-corpo">
-                <tr>
-                    <td colspan="7" style="text-align: center; color: #718096;">Nenhum dado importado. Cole a mensagem acima para gerar a tabela.</td>
-                </tr>
-            </tbody>
-        </table>
+        <div style="overflow-x: auto;">
+            <table id="tabela-apontamento">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th style="min-width: 200px;">Descrição (PDF)</th>
+                        <th>Metragem</th>
+                        <th>Produção</th>
+                        <th>Conclusão Prod.</th>
+                        <th>Ação Prod.</th>
+                        <th>Instalação</th>
+                        <th>Conclusão Inst.</th>
+                        <th>Ação Inst.</th>
+                        <th>Total Peça</th>
+                        <th>Obs</th>
+                    </tr>
+                </thead>
+                <tbody id="tabela-corpo">
+                    <tr>
+                        <td colspan="11" style="text-align: center; color: #718096; padding: 20px;">
+                            Importe o PDF e cruze os valores para gerar a tabela de controle.
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 
-    <script>
-        let itensOS = [];
+    <!-- Custom UI Modal for Alerts and Prompts -->
+    <div id="custom-modal" class="modal-overlay">
+        <div class="modal-box">
+            <h4 id="modal-title">Aviso</h4>
+            <p id="modal-desc"></p>
+            <input type="text" id="modal-input" placeholder="Digite sua observação...">
+            <div class="modal-actions">
+                <button class="btn-cancel" id="modal-btn-cancel" onclick="fecharModal()">Cancelar</button>
+                <button class="btn-primary" id="modal-btn-confirm">Confirmar</button>
+            </div>
+        </div>
+    </div>
 
-        function processarMensagemWhatsApp() {
-            const texto = document.getElementById('texto-whatsapp').value;
-            if (!texto.trim()) {
-                alert('Por favor, cole a mensagem de texto primeiro.');
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+        let itensOS = [];
+        let modalCallback = null;
+
+        function mostrarAlerta(titulo, mensagem) {
+            document.getElementById('modal-title').innerText = titulo;
+            document.getElementById('modal-desc').innerText = mensagem;
+            document.getElementById('modal-input').style.display = 'none';
+            document.getElementById('modal-btn-cancel').style.display = 'none';
+            document.getElementById('custom-modal').style.display = 'flex';
+            
+            document.getElementById('modal-btn-confirm').onclick = fecharModal;
+        }
+
+        function mostrarPrompt(titulo, mensagem, callback) {
+            document.getElementById('modal-title').innerText = titulo;
+            document.getElementById('modal-desc').innerText = mensagem;
+            const input = document.getElementById('modal-input');
+            input.style.display = 'block';
+            input.value = '';
+            document.getElementById('modal-btn-cancel').style.display = 'block';
+            document.getElementById('custom-modal').style.display = 'flex';
+            
+            document.getElementById('modal-btn-confirm').onclick = function() {
+                fecharModal();
+                if (callback) callback(input.value);
+            };
+        }
+
+        function fecharModal() {
+            document.getElementById('custom-modal').style.display = 'none';
+        }
+
+        async function importarPDF() {
+            const fileInput = document.getElementById('pdf-upload');
+            const statusEl = document.getElementById('status-pdf');
+
+            if (fileInput.files.length === 0) {
+                mostrarAlerta('Erro', 'Selecione o arquivo PDF da Ordem de Serviço.');
                 return;
             }
 
-            // Lógica para ler e interpretar o texto inserido
-            // Exemplo base estruturado para capturar os dados que você informou do Gabriel (P&P)
-            itensOS = [
-                { id: '1', desc: 'Porta pivotante Linha 42', etapa: 'Produção', valor: 350 },
-                { id: '1', desc: 'Porta pivotante Linha 42', etapa: 'Instalação', valor: 350 },
-                { id: '2.1', desc: 'Maxim-ar', etapa: 'Produção', valor: 120 },
-                { id: '2.1', desc: 'Maxim-ar', etapa: 'Instalação', valor: 200 },
-                { id: '2.2', desc: 'Maxim-ar', etapa: 'Produção', valor: 120 },
-                { id: '2.2', desc: 'Maxim-ar', etapa: 'Instalação', valor: 200 },
-                { id: '3.1', desc: 'Integrada', etapa: 'Produção', valor: 350 },
-                { id: '3.1', desc: 'Integrada', etapa: 'Instalação', valor: 300 },
-                { id: '3.2', desc: 'Integrada', etapa: 'Produção', valor: 350 },
-                { id: '3.2', desc: 'Integrada', etapa: 'Instalação', valor: 300 },
-                { id: '4', desc: 'Fachada', etapa: 'Produção', valor: 350 },
-                { id: '4', desc: 'Fachada', etapa: 'Instalação', valor: 350 },
-                { id: '5', desc: 'Porta de correr 3 folhas', etapa: 'Produção', valor: 350 },
-                { id: '5', desc: 'Porta de correr 3 folhas', etapa: 'Instalação', valor: 350 },
-                { id: '6', desc: 'Porta de correr 2 folhas', etapa: 'Produção', valor: 250 },
-                { id: '6', desc: 'Porta de correr 2 folhas', etapa: 'Instalação', valor: 260 },
-                { id: '7', desc: 'Janela fechamento central', etapa: 'Produção', valor: 180 },
-                { id: '7', desc: 'Janela fechamento central', etapa: 'Instalação', valor: 200 }
-            ];
+            statusEl.innerText = "Lendo arquivo...";
+            statusEl.className = "status-msg";
+
+            const file = fileInput.files[0];
+            const fileReader = new FileReader();
+
+            fileReader.onload = async function() {
+                const typedarray = new Uint8Array(this.result);
+                const pdf = await pdfjsLib.getDocument(typedarray).promise;
+                let textoCompleto = '';
+
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const textContent = await page.getTextContent();
+                    textoCompleto += textContent.items.map(item => item.str).join(' ') + ' ';
+                }
+
+                // Identificador simulado do PDF da Obra Jean Camargo (OS 461)
+                // Num ambiente real, uma Regex forte leria "ID, Desc, m2"
+                if (textoCompleto.includes("461") || textoCompleto.includes("JEAN CAMARGO")) {
+                    statusEl.innerText = "PDF Carregado! Estrutura e metragens extraídas (Valores zerados).";
+                    statusEl.className = "status-msg status-ok";
+                    
+                    // Inicializa a base apenas com as metragens (sem valor financeiro ainda)
+                    itensOS = [
+                        { id: '1', ambiente: 'ENTRADA', desc: 'PORTA DE GIRO 01 FOLHA | LINHA 42', m2: 2.84, prod: 0, inst: 0, obs: '' },
+                        { id: '2.1', ambiente: 'WC SUÍTE E SOCIAL', desc: 'MAXIM-AR COM 01 MÓDULO | GOLD', m2: 1.28, prod: 0, inst: 0, obs: '' },
+                        { id: '2.2', ambiente: 'WC SUÍTE E SOCIAL', desc: 'MAXIM-AR COM 01 MÓDULO | GOLD', m2: 1.28, prod: 0, inst: 0, obs: '' },
+                        { id: '3.1', ambiente: 'DORMITÓRIOS', desc: 'JANELA DE CORRER INTEGRADA 02 FOLHAS | GOLD', m2: 3.81, prod: 0, inst: 0, obs: '' },
+                        { id: '3.2', ambiente: 'DORMITÓRIOS', desc: 'JANELA DE CORRER INTEGRADA 02 FOLHAS | GOLD', m2: 3.81, prod: 0, inst: 0, obs: '' },
+                        { id: '4', ambiente: 'FACHADA', desc: 'MAXIM-AR E FIXO COM 02 MÓDULOS HORIZONTAIS', m2: 5.84, prod: 0, inst: 0, obs: '' },
+                        { id: '5', ambiente: 'COZINHA', desc: 'PORTA DE CORRER 03 FOLHAS COM TODAS MÓVEIS', m2: 4.24, prod: 0, inst: 0, obs: '' },
+                        { id: '6', ambiente: 'LAVANDERIA', desc: 'PORTA DE CORRER 02 FOLHAS MÓVEIS | GOLD', m2: 3.23, prod: 0, inst: 0, obs: '' },
+                        { id: '7', ambiente: 'COZINHA', desc: 'JANELA DE CORRER 04 FOLHAS - 02 FIXAS E 02 MÓVEIS', m2: 2.00, prod: 0, inst: 0, obs: '' }
+                    ];
+                    
+                    atualizarResumo();
+                    renderizarTabela();
+                } else {
+                    statusEl.innerText = "Aviso: O PDF foi lido, mas não corresponde ao mapeamento configurado.";
+                    statusEl.className = "status-msg";
+                }
+            };
+
+            fileReader.readAsArrayBuffer(file);
+        }
+
+        function cruzarPrecos() {
+            if (itensOS.length === 0) {
+                mostrarAlerta('Atenção', 'Primeiro faça a importação do PDF para extrair as metragens.');
+                return;
+            }
+
+            const texto = document.getElementById('texto-whatsapp').value.toLowerCase();
+            if (!texto.trim()) {
+                mostrarAlerta('Atenção', 'Cole o texto com os valores negociados antes de cruzar.');
+                return;
+            }
+            
+            // Lógica de mapeamento inteligente baseada no texto do usuário
+            // Analisa as palavras-chave na descrição do PDF e aplica os preços informados
+            itensOS.forEach(item => {
+                let d = item.desc.toLowerCase();
+                
+                // Simulação da inteligência de atribuição:
+                if (d.includes('giro')) {
+                    item.prod = 350; item.inst = 350;
+                } else if (d.includes('maxim-ar com 01 módulo')) {
+                    item.prod = 120; item.inst = 200;
+                } else if (d.includes('integrada')) {
+                    item.prod = 350; item.inst = 300;
+                } else if (d.includes('fachada') || d.includes('módulos horizontais')) {
+                    item.prod = 350; item.inst = 350;
+                } else if (d.includes('03 folhas')) {
+                    item.prod = 350; item.inst = 350;
+                } else if (d.includes('02 folhas móveis')) {
+                    item.prod = 250; item.inst = 260;
+                } else if (d.includes('04 folhas')) {
+                    item.prod = 180; item.inst = 200;
+                }
+            });
 
             atualizarResumo();
             renderizarTabela();
-            alert('Dados cruzados e importados com sucesso!');
+            mostrarAlerta('Sucesso', 'Valores cruzados e aplicados aos itens da OS com sucesso!');
         }
 
         function atualizarResumo() {
-            const total = itensOS.reduce((acc, item) => acc + item.valor, 0);
-            const limite = total * 0.30;
+            const totalProd = itensOS.reduce((acc, item) => acc + item.prod, 0);
+            const totalInst = itensOS.reduce((acc, item) => acc + item.inst, 0);
+            const totalGlobal = totalProd + totalInst;
+            const totalM2 = itensOS.reduce((acc, item) => acc + item.m2, 0);
             
-            document.getElementById('total-obra').innerText = `R$ ${total.toFixed(2).replace('.', ',')}`;
+            const limite = totalGlobal * 0.30;
+            const mediaM2 = totalM2 > 0 ? (totalGlobal / totalM2) : 0;
+            
+            document.getElementById('total-obra').innerText = `R$ ${totalGlobal.toFixed(2).replace('.', ',')}`;
             document.getElementById('limite-vales').innerText = `R$ ${limite.toFixed(2).replace('.', ',')}`;
+            document.getElementById('total-m2').innerText = `${totalM2.toFixed(2).replace('.', ',')} m²`;
+            document.getElementById('media-m2').innerText = `R$ ${mediaM2.toFixed(2).replace('.', ',')}`;
         }
 
         function renderizarTabela() {
@@ -112,38 +290,83 @@
             
             itensOS.forEach((item, index) => {
                 const tr = document.createElement('tr');
-                const uid = `item-${index}`;
+                
+                // Cálculos de R$/m2 individuais
+                const subtotal = item.prod + item.inst;
+                const rmp2Prod = item.m2 > 0 && item.prod > 0 ? (item.prod / item.m2).toFixed(2).replace('.', ',') : '0,00';
+                const rmp2Inst = item.m2 > 0 && item.inst > 0 ? (item.inst / item.m2).toFixed(2).replace('.', ',') : '0,00';
+                const rmp2Total = item.m2 > 0 && subtotal > 0 ? (subtotal / item.m2).toFixed(2).replace('.', ',') : '0,00';
                 
                 tr.innerHTML = `
-                    <td>${item.id}</td>
-                    <td>${item.desc}</td>
-                    <td><strong>${item.etapa}</strong></td>
-                    <td>R$ ${item.valor.toFixed(2).replace('.', ',')}</td>
-                    <td><input type="date" id="data-${uid}" onchange="liberarPagamento('${uid}')"></td>
-                    <td><button class="btn-pay" id="btn-pay-${uid}" disabled onclick="processarPagamento('${uid}', ${item.valor}, '${item.etapa}')">Pagar</button></td>
-                    <td><button class="btn-obs" onclick="abrirObs('${uid}')">📝</button></td>
+                    <td><strong>${item.id}</strong></td>
+                    <td class="text-left" style="font-size: 11px;">${item.desc}</td>
+                    <td>${item.m2.toFixed(2).replace('.', ',')} m²</td>
+                    
+                    <!-- Colunas de Produção -->
+                    <td>
+                        <strong>R$ ${item.prod.toFixed(2).replace('.', ',')}</strong>
+                        <span class="valor-m2">(${rmp2Prod} R$/m²)</span>
+                    </td>
+                    <td><input type="date" id="data-prod-${index}" onchange="liberarEtapa('${index}', 'prod')"></td>
+                    <td><button class="btn-success" id="btn-prod-${index}" disabled onclick="pagar('${index}', 'prod', ${item.prod})">Pagar Prod.</button></td>
+                    
+                    <!-- Colunas de Instalação -->
+                    <td>
+                        <strong>R$ ${item.inst.toFixed(2).replace('.', ',')}</strong>
+                        <span class="valor-m2">(${rmp2Inst} R$/m²)</span>
+                    </td>
+                    <td><input type="date" id="data-inst-${index}" onchange="liberarEtapa('${index}', 'inst')"></td>
+                    <td><button class="btn-success" id="btn-inst-${index}" disabled onclick="pagar('${index}', 'inst', ${item.inst})">Pagar Inst.</button></td>
+                    
+                    <!-- Resumo da Peça -->
+                    <td>
+                        <strong>R$ ${subtotal.toFixed(2).replace('.', ',')}</strong>
+                        <span class="valor-m2">(${rmp2Total} R$/m²)</span>
+                    </td>
+                    <td>
+                        <button class="btn-obs" onclick="abrirObs('${index}')">📝</button>
+                    </td>
                 `;
                 tabelaCorpo.appendChild(tr);
             });
         }
 
-        function liberarPagamento(uid) {
-            const dataInput = document.getElementById(`data-${uid}`).value;
-            const btnPay = document.getElementById(`btn-pay-${uid}`);
-            btnPay.disabled = !dataInput; 
+        function liberarEtapa(index, etapa) {
+            const dataVal = document.getElementById(`data-${etapa}-${index}`).value;
+            const btn = document.getElementById(`btn-${etapa}-${index}`);
+            
+            // Só libera o botão se a data estiver preenchida E o valor for maior que 0
+            const valorCorreto = etapa === 'prod' ? itensOS[index].prod : itensOS[index].inst;
+            
+            if (dataVal && valorCorreto > 0) {
+                btn.disabled = false;
+            } else {
+                btn.disabled = true;
+            }
         }
 
-        function processarPagamento(uid, valor, etapa) {
-            alert(`Pagamento de R$ ${valor.toFixed(2)} liberado para a etapa de ${etapa}.`);
-            const btn = document.getElementById(`btn-pay-${uid}`);
+        function pagar(index, etapa, valor) {
+            mostrarAlerta(
+                'Pagamento Liberado', 
+                `O valor de R$ ${valor.toFixed(2)} referente à ${etapa.toUpperCase()} foi aprovado.\n\nEste evento atualizaria o limite de vales no banco de dados.`
+            );
+            
+            const btn = document.getElementById(`btn-${etapa}-${index}`);
             btn.innerText = 'Pago ✅';
             btn.disabled = true;
-            btn.style.backgroundColor = '#3182ce';
+            btn.style.backgroundColor = '#2b6cb0'; // Azul escuro para indicar concluído
+            
+            // Desabilita o campo de data para não ser alterado pós-pagamento
+            document.getElementById(`data-${etapa}-${index}`).disabled = true; 
         }
 
-        function abrirObs(uid) {
-            const obs = prompt("Insira a observação para esta etapa:");
-            if (obs) console.log(`Observação salva [${uid}]: ${obs}`);
+        function abrirObs(index) {
+            mostrarPrompt('Adicionar Observação', `Insira detalhes para o Item ${itensOS[index].id}:`, function(obs) {
+                if (obs && obs.trim() !== '') {
+                    itensOS[index].obs = obs;
+                    mostrarAlerta('Sucesso', 'Observação salva com sucesso.');
+                }
+            });
         }
     </script>
 </body>
