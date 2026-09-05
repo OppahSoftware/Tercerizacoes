@@ -345,6 +345,10 @@
                 <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
                     <div class="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
                         <h3 class="font-semibold text-slate-800">Apontamento, Custos e Liberações</h3>
+                        <button onclick="adicionarItemManual()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-colors shadow-sm flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                            Item Manual
+                        </button>
                     </div>
                     <!-- Container com rolagem e altura máxima -->
                     <div class="overflow-x-auto overflow-y-auto w-full max-h-[600px]">
@@ -553,7 +557,7 @@
             const obra = getObraAtual();
             const tbody = document.getElementById('tabela-corpo-obra');
             if (!obra || !obra.itens || obra.itens.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="12" class="px-4 py-8 text-center text-slate-500">Faça o upload do PDF no Passo 1 para extrair os itens da obra.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="12" class="px-4 py-8 text-center text-slate-500">Faça o upload do PDF no Passo 1 ou adicione itens manualmente para iniciar.</td></tr>`;
                 return;
             }
 
@@ -668,6 +672,66 @@
                 confirmText: 'Salvar',
                 onConfirm: (novaObs) => {
                     it.obs = novaObs;
+                    renderTabelaObra();
+                }
+            });
+        }
+
+        function adicionarItemManual() {
+            const formHtml = `
+                <div class="space-y-3 mt-4 text-left text-sm">
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">ID da Peça</label>
+                        <input type="text" id="man-id" class="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Ex: 1.1">
+                    </div>
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">Descrição</label>
+                        <input type="text" id="man-desc" class="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Ex: Janela de Correr Gold">
+                    </div>
+                    <div class="grid grid-cols-3 gap-3">
+                        <div>
+                            <label class="block font-medium text-slate-700 mb-1">Metragem (m²)</label>
+                            <input type="number" id="man-m2" class="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="0.00" step="0.01">
+                        </div>
+                        <div>
+                            <label class="block font-medium text-slate-700 mb-1">R$ Produção</label>
+                            <input type="number" id="man-prod" class="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="0.00" step="0.01">
+                        </div>
+                        <div>
+                            <label class="block font-medium text-slate-700 mb-1">R$ Instalação</label>
+                            <input type="number" id="man-inst" class="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="0.00" step="0.01">
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            showModal({
+                title: 'Adicionar Item Manualmente',
+                message: formHtml,
+                confirmText: 'Adicionar',
+                onConfirm: () => {
+                    const idEl = document.getElementById('man-id');
+                    const descEl = document.getElementById('man-desc');
+                    const m2El = document.getElementById('man-m2');
+                    const prodEl = document.getElementById('man-prod');
+                    const instEl = document.getElementById('man-inst');
+                    
+                    const newItem = {
+                        id: idEl && idEl.value.trim() !== '' ? idEl.value.trim() : 'S/N',
+                        desc: descEl && descEl.value.trim() !== '' ? descEl.value.trim() : 'Item sem descrição',
+                        m2: m2El && m2El.value !== '' ? parseFloat(m2El.value.replace(',','.')) : 0,
+                        prod: prodEl && prodEl.value !== '' ? parseFloat(prodEl.value.replace(',','.')) : 0,
+                        inst: instEl && instEl.value !== '' ? parseFloat(instEl.value.replace(',','.')) : 0,
+                        obs: '',
+                        statusProd: '',
+                        statusInst: ''
+                    };
+
+                    const obra = getObraAtual();
+                    if (!obra.itens) obra.itens = [];
+                    obra.itens.push(newItem);
+                    
+                    atualizarResumoObra();
                     renderTabelaObra();
                 }
             });
