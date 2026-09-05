@@ -3,19 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Portal Oppah - Terceirizações</title>
+    <title>Portal Oppah - Terceirizados</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
     <div class="container">
         <header>
             <h1>Controle de Pagamento - Terceirizados</h1>
-            
-            <!-- Nova seção de importação -->
-            <div style="margin-top: 15px; padding: 15px; background: #e2e8f0; border-radius: 6px;">
-                <label style="font-weight: bold; margin-right: 10px;">Importar Ordem de Serviço:</label>
+            <div class="upload-box">
+                <label><strong>Importar Ordem de Serviço (PDF):</strong></label>
                 <input type="file" id="pdf-upload" accept="application/pdf">
-                <button class="btn-pay" onclick="importarPDF()">Processar PDF</button>
+                <button class="btn-primary" onclick="importarPDF()">Processar PDF</button>
             </div>
         </header>
 
@@ -38,12 +36,12 @@
                 </tr>
             </thead>
             <tbody id="tabela-corpo">
-                <!-- Linhas geradas após o upload -->
+                <!-- Os dados aparecem aqui após processar o PDF -->
             </tbody>
         </table>
     </div>
 
-    <!-- Importando a biblioteca PDF.js -->
+    <!-- Biblioteca para ler o PDF direto no navegador -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <script src="js/app.js"></script>
 </body>
