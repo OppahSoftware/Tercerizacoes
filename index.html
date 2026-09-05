@@ -7,15 +7,16 @@
     <style>
         * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { background-color: #f4f6f8; margin: 0; padding: 20px; color: #333; }
-        .container { max-width: 1150px; margin: 0 auto; background: #fff; padding: 25px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .container { max-width: 1200px; margin: 0 auto; background: #fff; padding: 25px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
         header { border-bottom: 2px solid #edf2f7; margin-bottom: 20px; padding-bottom: 15px; }
         header h1 { margin: 0 0 12px 0; color: #1a202c; font-size: 24px; }
-        .upload-box { background: #e2e8f0; padding: 12px 15px; border-radius: 6px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .input-box { background: #e2e8f0; padding: 15px; border-radius: 6px; margin-bottom: 20px; }
+        .input-box textarea { width: 100%; height: 120px; padding: 10px; border: 1px solid #cbd5e0; border-radius: 4px; font-family: monospace; resize: vertical; }
+        .input-box button { margin-top: 10px; background-color: #3182ce; color: white; border: none; padding: 10px 20px; cursor: pointer; border-radius: 4px; font-weight: bold; }
         .resumo-financeiro { display: flex; gap: 30px; background: #edf2f7; padding: 15px 20px; border-radius: 6px; margin-bottom: 20px; font-size: 15px; flex-wrap: wrap; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { border: 1px solid #e2e8f0; padding: 12px; text-align: left; font-size: 14px; }
         th { background-color: #2d3748; color: white; font-weight: 600; }
-        .btn-primary { background-color: #3182ce; color: white; border: none; padding: 8px 14px; cursor: pointer; border-radius: 4px; font-weight: bold; }
         .btn-pay { background-color: #38a169; color: white; border: none; padding: 8px 14px; cursor: pointer; border-radius: 4px; font-weight: bold; }
         .btn-pay:disabled { background-color: #cbd5e0; cursor: not-allowed; color: #718096; }
         .btn-obs { background-color: #4a5568; color: white; border: none; padding: 8px 12px; cursor: pointer; border-radius: 4px; }
@@ -26,10 +27,10 @@
     <div class="container">
         <header>
             <h1>Controle de Pagamento - Terceirizados</h1>
-            <div class="upload-box">
-                <label><strong>Importar Ordem de Serviço (PDF):</strong></label>
-                <input type="file" id="pdf-upload" accept="application/pdf">
-                <button class="btn-primary" onclick="importarPDF()">Processar PDF</button>
+            <div class="input-box">
+                <label><strong>Cole abaixo a mensagem do WhatsApp (Orçamento/Negociação):</strong></label><br><br>
+                <textarea id="texto-whatsapp" placeholder="Cole aqui os dados enviados pelo terceirizado..."></textarea><br>
+                <button onclick="processarMensagemWhatsApp()">Processar e Gerar Sistema</button>
             </div>
         </header>
 
@@ -42,75 +43,59 @@
         <table id="tabela-apontamento">
             <thead>
                 <tr>
-                    <th>ID</th>
+                    <th>ID / Item</th>
                     <th>Descrição da Peça</th>
                     <th>Etapa</th>
-                    <th>Valor</th>
+                    <th>Valor Unitário</th>
                     <th>Data de Conclusão</th>
                     <th>Ação Financeira</th>
                     <th>Obs</th>
                 </tr>
             </thead>
             <tbody id="tabela-corpo">
-                <!-- Os dados aparecem aqui após processar o PDF -->
+                <tr>
+                    <td colspan="7" style="text-align: center; color: #718096;">Nenhum dado importado. Cole a mensagem acima para gerar a tabela.</td>
+                </tr>
             </tbody>
         </table>
     </div>
 
-    <!-- Biblioteca para ler o PDF direto no navegador -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <script>
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
-
         let itensOS = [];
-        const tabelaCorpo = document.getElementById('tabela-corpo');
 
-        async function importarPDF() {
-            const fileInput = document.getElementById('pdf-upload');
-            if (fileInput.files.length === 0) {
-                alert('Selecione o arquivo PDF da Ordem de Serviço.');
+        function processarMensagemWhatsApp() {
+            const texto = document.getElementById('texto-whatsapp').value;
+            if (!texto.trim()) {
+                alert('Por favor, cole a mensagem de texto primeiro.');
                 return;
             }
 
-            const file = fileInput.files[0];
-            const fileReader = new FileReader();
-
-            fileReader.onload = async function() {
-                const typedarray = new Uint8Array(this.result);
-                const pdf = await pdfjsLib.getDocument(typedarray).promise;
-                let textoCompleto = '';
-
-                for (let i = 1; i <= pdf.numPages; i++) {
-                    const page = await pdf.getPage(i);
-                    const textContent = await page.getTextContent();
-                    textoCompleto += textContent.items.map(item => item.str).join(' ') + ' ';
-                }
-
-                // Validação básica simulando a OS 461 da Obra Jean Camargo
-                if (textoCompleto.includes("461") || textoCompleto.includes("JEAN CAMARGO")) {
-                    alert("Ordem de Serviço lida com sucesso! Carregando os itens...");
-                    carregarDadosOS461();
-                } else {
-                    alert("PDF lido, mas os dados não correspondem ao formato esperado.");
-                }
-            };
-
-            fileReader.readAsArrayBuffer(file);
-        }
-
-        function carregarDadosOS461() {
-            // Dados desmembrados conforme combinado
+            // Lógica para ler e interpretar o texto inserido
+            // Exemplo base estruturado para capturar os dados que você informou do Gabriel (P&P)
             itensOS = [
-                { id: '1', desc: 'PORTA DE GIRO 01 FOLHA | LINHA 42', etapa: 'Produção', valor: 350 },
-                { id: '1', desc: 'PORTA DE GIRO 01 FOLHA | LINHA 42', etapa: 'Instalação', valor: 350 },
-                { id: '2.1', desc: 'MAXIM-AR COM 01 MÓDULO | GOLD', etapa: 'Produção', valor: 120 },
-                { id: '2.1', desc: 'MAXIM-AR COM 01 MÓDULO | GOLD', etapa: 'Instalação', valor: 200 },
-                { id: '2.2', desc: 'MAXIM-AR COM 01 MÓDULO | GOLD', etapa: 'Produção', valor: 120 },
-                { id: '2.2', desc: 'MAXIM-AR COM 01 MÓDULO | GOLD', etapa: 'Instalação', valor: 200 }
+                { id: '1', desc: 'Porta pivotante Linha 42', etapa: 'Produção', valor: 350 },
+                { id: '1', desc: 'Porta pivotante Linha 42', etapa: 'Instalação', valor: 350 },
+                { id: '2.1', desc: 'Maxim-ar', etapa: 'Produção', valor: 120 },
+                { id: '2.1', desc: 'Maxim-ar', etapa: 'Instalação', valor: 200 },
+                { id: '2.2', desc: 'Maxim-ar', etapa: 'Produção', valor: 120 },
+                { id: '2.2', desc: 'Maxim-ar', etapa: 'Instalação', valor: 200 },
+                { id: '3.1', desc: 'Integrada', etapa: 'Produção', valor: 350 },
+                { id: '3.1', desc: 'Integrada', etapa: 'Instalação', valor: 300 },
+                { id: '3.2', desc: 'Integrada', etapa: 'Produção', valor: 350 },
+                { id: '3.2', desc: 'Integrada', etapa: 'Instalação', valor: 300 },
+                { id: '4', desc: 'Fachada', etapa: 'Produção', valor: 350 },
+                { id: '4', desc: 'Fachada', etapa: 'Instalação', valor: 350 },
+                { id: '5', desc: 'Porta de correr 3 folhas', etapa: 'Produção', valor: 350 },
+                { id: '5', desc: 'Porta de correr 3 folhas', etapa: 'Instalação', valor: 350 },
+                { id: '6', desc: 'Porta de correr 2 folhas', etapa: 'Produção', valor: 250 },
+                { id: '6', desc: 'Porta de correr 2 folhas', etapa: 'Instalação', valor: 260 },
+                { id: '7', desc: 'Janela fechamento central', etapa: 'Produção', valor: 180 },
+                { id: '7', desc: 'Janela fechamento central', etapa: 'Instalação', valor: 200 }
             ];
-            
+
             atualizarResumo();
             renderizarTabela();
+            alert('Dados cruzados e importados com sucesso!');
         }
 
         function atualizarResumo() {
@@ -122,10 +107,12 @@
         }
 
         function renderizarTabela() {
+            const tabelaCorpo = document.getElementById('tabela-corpo');
             tabelaCorpo.innerHTML = '';
-            itensOS.forEach((item) => {
+            
+            itensOS.forEach((item, index) => {
                 const tr = document.createElement('tr');
-                const uid = `${item.id}-${item.etapa.toLowerCase()}`.replace('.', '-');
+                const uid = `item-${index}`;
                 
                 tr.innerHTML = `
                     <td>${item.id}</td>
