@@ -2,40 +2,77 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Portal Oppah - Terceirizações</title>
-    <link rel="stylesheet" href="css/style.css">
+    <title>Controle de Terceirizados - Sevea</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; font-size: 14px; }
+        th { background-color: #f4f4f4; }
+        .btn-pay { background-color: #28a745; color: white; border: none; padding: 6px 12px; cursor: pointer; border-radius: 4px; }
+        .btn-pay:disabled { background-color: #cccccc; cursor: not-allowed; }
+        .btn-obs { background-color: #17a2b8; color: white; border: none; padding: 6px 12px; cursor: pointer; border-radius: 4px; }
+    </style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>Controle de Pagamento - Terceirizados</h1>
-            <p><strong>OS 461</strong> | Obra: JEAN CAMARGO | Prestador: P&P Esquadrias (Gabriel)</p>
-        </header>
 
-        <div class="resumo-financeiro">
-            <div>Total da Obra: <strong>R$ 4.930,00</strong></div>
-            <div>Limite de Vales (30%): <strong>R$ 1.479,00</strong></div>
-            <div>Vales Pagos: <strong id="vales-pagos">R$ 0,00</strong></div>
-        </div>
+    <h3>OS 461 - Obra: Jean Camargo | Terceirizado: P&P Esquadrias (Gabriel)</h3>
 
-        <table id="tabela-apontamento">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Descrição da Peça</th>
-                    <th>Etapa</th>
-                    <th>Valor</th>
-                    <th>Data de Conclusão</th>
-                    <th>Ação Financeira</th>
-                    <th>Obs</th>
-                </tr>
-            </thead>
-            <tbody id="tabela-corpo">
-                <!-- As linhas são geradas dinamicamente pelo JavaScript -->
-            </tbody>
-        </table>
-    </div>
-    <script src="js/app.js"></script>
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Descrição</th>
+                <th>Valor Produção</th>
+                <th>Data Prod. Concluída</th>
+                <th>Ação</th>
+                <th>Observações</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Exemplo do Item 2.1 -->
+            <tr>
+                <td>2.1</td>
+                <td>MAXIM-AR COM 01 MÓDULO | GOLD</td>
+                <td>R$ 120,00</td>
+                <td>
+                    <input type="date" class="date-input" id="data-prod-2-1" onchange="liberarPagamento('2-1')">
+                </td>
+                <td>
+                    <button class="btn-pay" id="btn-pay-2-1" disabled onclick="processarPagamento('2.1', 120)">Pagar Produção</button>
+                </td>
+                <td>
+                    <button class="btn-obs" onclick="abrirObs('2.1')">Adicionar Obs</button>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <script>
+        // Função para destravar o botão de pagamento quando a data for inserida
+        function liberarPagamento(id) {
+            const dataInput = document.getElementById('data-prod-' + id).value;
+            const btnPay = document.getElementById('btn-pay-' + id);
+            
+            if (dataInput) {
+                btnPay.disabled = false;
+            } else {
+                btnPay.disabled = true;
+            }
+        }
+
+        // Simulação da ação de pagamento
+        function processarPagamento(id, valor) {
+            alert('Iniciando pagamento do Item ' + id + ' no valor de R$ ' + valor + '.\nO sistema abaterá eventuais vales deste montante.');
+        }
+
+        // Simulação do modal de observações
+        function abrirObs(id) {
+            let obs = prompt("Insira a observação para o item " + id + ":");
+            if(obs) {
+                console.log("Observação salva: " + obs);
+            }
+        }
+    </script>
+
 </body>
 </html>
