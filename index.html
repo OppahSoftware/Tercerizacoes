@@ -4,175 +4,395 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Portal Oppah - Controle de Terceirizados</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        body { background-color: #f4f6f8; margin: 0; padding: 20px; color: #333; }
-        .container { max-width: 1400px; margin: 0 auto; background: #fff; padding: 25px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
         
-        header { border-bottom: 2px solid #edf2f7; margin-bottom: 20px; padding-bottom: 15px; display: flex; flex-direction: column; gap: 15px;}
-        header h1 { margin: 0; color: #1a202c; font-size: 24px; }
-        
-        .action-panels { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        .panel { background: #e2e8f0; padding: 15px; border-radius: 6px; display: flex; flex-direction: column; gap: 10px; }
-        .panel h3 { margin: 0; font-size: 16px; color: #2d3748; }
-        .panel textarea { width: 100%; height: 80px; padding: 10px; border: 1px solid #cbd5e0; border-radius: 4px; font-family: monospace; resize: vertical; }
-        
-        .resumo-financeiro { display: flex; gap: 30px; background: #edf2f7; padding: 15px 20px; border-radius: 6px; margin-bottom: 20px; font-size: 15px; flex-wrap: wrap; justify-content: space-between;}
-        .resumo-card { background: white; padding: 10px 20px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: center; flex: 1; }
-        .resumo-card span { display: block; font-size: 12px; color: #718096; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px;}
-        .resumo-card strong { font-size: 18px; color: #2d3748; }
-        
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
-        th, td { border: 1px solid #e2e8f0; padding: 10px; text-align: left; vertical-align: middle; }
-        th { background-color: #2d3748; color: white; font-weight: 600; text-align: center; }
-        td { text-align: center; }
-        td.text-left { text-align: left; }
-        
-        .btn-primary { background-color: #3182ce; color: white; border: none; padding: 8px 14px; cursor: pointer; border-radius: 4px; font-weight: bold; transition: 0.2s;}
-        .btn-primary:hover { background-color: #2b6cb0; }
-        .btn-success { background-color: #38a169; color: white; border: none; padding: 6px 10px; cursor: pointer; border-radius: 4px; font-weight: bold; font-size: 12px; transition: 0.2s;}
-        .btn-success:disabled { background-color: #cbd5e0; cursor: not-allowed; color: #718096; }
-        .btn-obs { background-color: #4a5568; color: white; border: none; padding: 6px 10px; cursor: pointer; border-radius: 4px; font-size: 12px; transition: 0.2s;}
-        .btn-obs:hover { background-color: #2d3748; }
-        
-        input[type="date"] { padding: 6px; border: 1px solid #cbd5e0; border-radius: 4px; color: #2d3748; font-size: 12px; width: 110px;}
-        input[type="file"] { font-size: 14px; }
-        
-        .valor-m2 { display: block; font-size: 11px; color: #718096; margin-top: 4px; }
-        .status-msg { margin-top: 5px; font-size: 13px; font-weight: bold; color: #e53e3e; }
-        .status-ok { color: #38a169; }
+        /* Estilização da barra de rolagem */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
         /* Custom Modal Styles */
-        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; }
-        .modal-box { background: white; padding: 25px; border-radius: 8px; width: 400px; max-width: 90%; box-shadow: 0 10px 15px rgba(0,0,0,0.1); }
-        .modal-box h4 { margin: 0 0 15px 0; font-size: 18px; color: #2d3748; }
-        .modal-box p { margin: 0 0 15px 0; font-size: 14px; color: #4a5568; line-height: 1.5; }
-        .modal-box input { width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 4px; margin-bottom: 15px; display: none; }
-        .modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
-        .btn-cancel { background-color: #e2e8f0; color: #4a5568; border: none; padding: 8px 14px; cursor: pointer; border-radius: 4px; font-weight: bold; }
+        .modal-overlay { 
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(15, 23, 42, 0.6); justify-content: center; align-items: center; z-index: 1000; 
+            backdrop-filter: blur(4px);
+        }
+        .modal-box { 
+            background: white; padding: 24px; border-radius: 12px; width: 450px; max-width: 90%; 
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); 
+            transform: scale(0.95); transition: transform 0.2s ease-out;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal-overlay.active .modal-box { transform: scale(1); }
+        
+        .valor-m2 { font-size: 0.7rem; color: #64748b; margin-top: 2px; display: block; }
+        .hidden-view { display: none !important; }
     </style>
 </head>
-<body>
-    <div class="container">
-        <header>
-            <h1>Portal Oppah - Controle de Terceirizados</h1>
-            
-            <div class="action-panels">
-                <!-- Passo 1: Importar o PDF -->
-                <div class="panel">
-                    <h3>1. Extração de Quantitativos (PDF)</h3>
-                    <p style="font-size: 12px; margin: 0; color: #4a5568;">Importe a Ordem de Serviço para mapear peças e metragens.</p>
-                    <input type="file" id="pdf-upload" accept="application/pdf">
-                    <button class="btn-primary" onclick="importarPDF()">Processar PDF</button>
-                    <div id="status-pdf" class="status-msg">Aguardando importação...</div>
-                </div>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col md:flex-row">
 
-                <!-- Passo 2: Inserir Valores -->
-                <div class="panel">
-                    <h3>2. Cruzamento Financeiro (WhatsApp)</h3>
-                    <p style="font-size: 12px; margin: 0; color: #4a5568;">Cole os valores negociados para aplicar às peças.</p>
-                    <textarea id="texto-whatsapp" placeholder="Ex: Porta de giro 350 prod 350 inst / Maxim-ar 120 prod 200 inst..."></textarea>
-                    <button class="btn-primary" onclick="cruzarPrecos()">Cruzar Valores</button>
-                </div>
+    <aside class="w-full md:w-64 bg-slate-900 text-white flex flex-col flex-shrink-0">
+        <div class="p-6 border-b border-slate-700 flex items-center gap-3">
+            <div class="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center font-bold text-xl">O</div>
+            <h2 class="text-xl font-bold tracking-tight">Portal Oppah</h2>
+        </div>
+        <nav class="flex-1 p-4 space-y-2">
+            <a href="#" class="flex items-center gap-3 px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+                Painel Inicial
+            </a>
+            <a href="#" onclick="showView('view-terceirizados')" class="flex items-center gap-3 px-4 py-3 bg-blue-600 text-white rounded-lg shadow-md transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                Terceirizados
+            </a>
+        </nav>
+    </aside>
+
+    <!-- VIEW 1: Lista de Terceirizados -->
+    <main id="view-terceirizados" class="flex-1 p-6 md:p-10 overflow-x-hidden">
+        <header class="mb-8 flex justify-between items-end">
+            <div>
+                <h1 class="text-3xl font-bold text-slate-800">Gestão de Terceirizados</h1>
+                <p class="text-slate-500 mt-1">Selecione um prestador de serviço para gerenciar suas obras</p>
             </div>
+            <button onclick="novoTerceirizado()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-5 rounded-lg shadow-sm transition-colors flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                Novo Terceirizado
+            </button>
+        </header>
+        
+        <div id="grid-terceirizados" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- Cards gerados via JS -->
+        </div>
+    </main>
+
+    <!-- VIEW 2: Obras do Terceirizado -->
+    <main id="view-obras" class="flex-1 p-6 md:p-10 overflow-x-hidden hidden-view">
+        <div class="mb-6">
+            <button onclick="showView('view-terceirizados')" class="text-slate-500 hover:text-blue-600 flex items-center gap-2 font-medium transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                Voltar para Terceirizados
+            </button>
+        </div>
+        <header class="mb-8 flex justify-between items-end border-b border-slate-200 pb-6">
+            <div>
+                <h1 class="text-3xl font-bold text-slate-800" id="header-nome-terceirizado">Obras - Prestador</h1>
+                <p class="text-slate-500 mt-1">Cadastre e gerencie as obras direcionadas a este prestador</p>
+            </div>
+            <button onclick="novaObra()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-5 rounded-lg shadow-sm transition-colors flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                Nova Obra
+            </button>
         </header>
 
-        <div class="resumo-financeiro">
-            <div class="resumo-card">
-                <span>Total da Obra</span>
-                <strong id="total-obra">R$ 0,00</strong>
+        <div id="grid-obras" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Cards gerados via JS -->
+        </div>
+    </main>
+
+    <!-- VIEW 3: Controle da Obra (PDF, WhatsApp e Tabela) -->
+    <main id="view-detalhes-obra" class="flex-1 p-6 md:p-10 overflow-x-hidden hidden-view">
+        <div class="mb-6 flex justify-between items-center">
+            <button onclick="showView('view-obras')" class="text-slate-500 hover:text-blue-600 flex items-center gap-2 font-medium transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                Voltar para Obras
+            </button>
+            <span id="badge-terceirizado" class="inline-block bg-blue-100 text-blue-800 text-xs font-semibold px-3 py-1 rounded-full border border-blue-200">
+                Prestador: -
+            </span>
+        </div>
+
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-slate-800" id="header-nome-obra">Obra: -</h1>
+            <p class="text-slate-500 mt-1">Gestão financeira e liberação de etapas</p>
+        </header>
+
+        <!-- Fluxo de Importação -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <!-- Passo 1 -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold">1</div>
+                    <h3 class="text-lg font-semibold text-slate-800">Extração do PDF (OS)</h3>
+                </div>
+                <p class="text-sm text-slate-500 mb-4 flex-1">Importe o croqui para extrair as peças e metragens (m²). Os valores virão zerados.</p>
+                <div class="flex items-center gap-3 mt-auto">
+                    <input type="file" id="pdf-upload" accept="application/pdf" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 transition cursor-pointer border border-slate-200 rounded-lg">
+                    <button onclick="importarPDF()" class="bg-slate-800 hover:bg-slate-900 text-white font-medium py-2.5 px-5 rounded-lg shadow-sm transition-colors whitespace-nowrap">
+                        Ler PDF
+                    </button>
+                </div>
+                <div id="status-pdf" class="mt-3 text-xs font-medium text-slate-400">Nenhum PDF processado na obra atual.</div>
             </div>
-            <div class="resumo-card">
-                <span>Limite de Vales (30%)</span>
-                <strong id="limite-vales">R$ 0,00</strong>
-            </div>
-            <div class="resumo-card">
-                <span>Total Metragem</span>
-                <strong id="total-m2">0,00 m²</strong>
-            </div>
-            <div class="resumo-card">
-                <span>Média Geral (R$/m²)</span>
-                <strong id="media-m2">R$ 0,00</strong>
+
+            <!-- Passo 2 -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold">2</div>
+                    <h3 class="text-lg font-semibold text-slate-800">Cruzamento de Valores (WhatsApp)</h3>
+                </div>
+                <p class="text-sm text-slate-500 mb-4">Cole a negociação do prestador para aplicar os preços nas peças do PDF.</p>
+                <div class="flex items-start gap-3 mt-auto">
+                    <textarea id="texto-whatsapp" placeholder="Ex: Porta pivotante 350 prod 350 inst..." class="w-full h-20 p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm outline-none resize-none"></textarea>
+                    <button onclick="cruzarPrecos()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-5 rounded-lg shadow-sm transition-colors whitespace-nowrap h-full flex items-center">
+                        Cruzar
+                    </button>
+                </div>
             </div>
         </div>
 
-        <div style="overflow-x: auto;">
-            <table id="tabela-apontamento">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th style="min-width: 200px;">Descrição (PDF)</th>
-                        <th>Metragem</th>
-                        <th>Produção</th>
-                        <th>Conclusão Prod.</th>
-                        <th>Ação Prod.</th>
-                        <th>Instalação</th>
-                        <th>Conclusão Inst.</th>
-                        <th>Ação Inst.</th>
-                        <th>Total Peça</th>
-                        <th>Obs</th>
-                    </tr>
-                </thead>
-                <tbody id="tabela-corpo">
-                    <tr>
-                        <td colspan="11" style="text-align: center; color: #718096; padding: 20px;">
-                            Importe o PDF e cruze os valores para gerar a tabela de controle.
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+        <!-- Indicadores Financeiros -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
+                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Total da Obra</span>
+                <strong id="total-obra" class="text-2xl text-slate-800">R$ 0,00</strong>
+            </div>
+            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center relative overflow-hidden">
+                <div class="absolute right-0 top-0 w-2 h-full bg-orange-400"></div>
+                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Limite Vales (30%)</span>
+                <strong id="limite-vales" class="text-2xl text-slate-800">R$ 0,00</strong>
+            </div>
+            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center relative overflow-hidden">
+                <div class="absolute right-0 top-0 w-2 h-full bg-emerald-500"></div>
+                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Total Metragem</span>
+                <strong id="total-m2" class="text-2xl text-slate-800">0,00 m²</strong>
+            </div>
+            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
+                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Média Global (R$/m²)</span>
+                <strong id="media-m2" class="text-2xl text-slate-800">R$ 0,00</strong>
+            </div>
         </div>
-    </div>
 
-    <!-- Custom UI Modal for Alerts and Prompts -->
+        <!-- Tabela -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+                <h3 class="font-semibold text-slate-800">Apontamento e Liberações</h3>
+            </div>
+            <div class="overflow-x-auto w-full">
+                <table class="w-full text-left text-sm whitespace-nowrap">
+                    <thead class="bg-slate-100 text-slate-600 font-medium">
+                        <tr>
+                            <th class="px-4 py-3 border-b border-r border-slate-200 text-center">ID</th>
+                            <th class="px-4 py-3 border-b border-r border-slate-200 min-w-[200px]">Descrição (PDF)</th>
+                            <th class="px-4 py-3 border-b border-r border-slate-200 text-center">m²</th>
+                            <th class="px-4 py-3 border-b border-slate-200 bg-blue-50 text-blue-800">Produção</th>
+                            <th class="px-4 py-3 border-b border-slate-200 bg-blue-50 text-blue-800">Data Conclusão</th>
+                            <th class="px-4 py-3 border-b border-r border-slate-200 bg-blue-50 text-blue-800 text-center">Ação</th>
+                            <th class="px-4 py-3 border-b border-slate-200 bg-emerald-50 text-emerald-800">Instalação</th>
+                            <th class="px-4 py-3 border-b border-slate-200 bg-emerald-50 text-emerald-800">Data Conclusão</th>
+                            <th class="px-4 py-3 border-b border-r border-slate-200 bg-emerald-50 text-emerald-800 text-center">Ação</th>
+                            <th class="px-4 py-3 border-b border-slate-200 text-slate-800">Subtotal</th>
+                            <th class="px-4 py-3 border-b border-slate-200 text-center">Obs</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabela-corpo" class="divide-y divide-slate-200">
+                        <!-- Renderizado via JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal Base Customizado -->
     <div id="custom-modal" class="modal-overlay">
         <div class="modal-box">
-            <h4 id="modal-title">Aviso</h4>
-            <p id="modal-desc"></p>
-            <input type="text" id="modal-input" placeholder="Digite sua observação...">
-            <div class="modal-actions">
-                <button class="btn-cancel" id="modal-btn-cancel" onclick="fecharModal()">Cancelar</button>
-                <button class="btn-primary" id="modal-btn-confirm">Confirmar</button>
+            <h4 id="modal-title" class="text-xl font-bold text-slate-800 mb-2">Aviso</h4>
+            <p id="modal-desc" class="text-slate-600 mb-5 text-sm leading-relaxed"></p>
+            
+            <input type="text" id="modal-input-single" placeholder="Digite aqui..." class="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none mb-5 hidden">
+            
+            <textarea id="modal-input" placeholder="Digite sua observação aqui..." class="w-full h-24 p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none mb-5 hidden"></textarea>
+            
+            <div class="flex justify-end gap-3">
+                <button id="modal-btn-cancel" onclick="fecharModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition-colors text-sm">Cancelar</button>
+                <button id="modal-btn-confirm" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors text-sm shadow-sm">Confirmar</button>
             </div>
         </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
-        let itensOS = [];
-        let modalCallback = null;
+        // --- BANCO DE DADOS EM MEMÓRIA ---
+        // Estrutura hierárquica preparada para espelhar um banco relacional no futuro
+        let db = {
+            terceirizados: [
+                {
+                    id: 'terc-1',
+                    nome: 'P&P Esquadrias (Gabriel)',
+                    ativo: true,
+                    obras: [
+                        { id: 'obra-1', nome: 'Obra Jean Camargo', itens: [] },
+                        { id: 'obra-2', nome: 'Edifício Horizonte', itens: [] }
+                    ]
+                },
+                {
+                    id: 'terc-2',
+                    nome: 'J&M Instalações (Marcos)',
+                    ativo: true,
+                    obras: []
+                }
+            ]
+        };
 
-        function mostrarAlerta(titulo, mensagem) {
-            document.getElementById('modal-title').innerText = titulo;
-            document.getElementById('modal-desc').innerText = mensagem;
-            document.getElementById('modal-input').style.display = 'none';
-            document.getElementById('modal-btn-cancel').style.display = 'none';
-            document.getElementById('custom-modal').style.display = 'flex';
+        // Estado da sessão atual
+        let appState = {
+            terceirizadoAtivoId: null,
+            obraAtivaId: null
+        };
+
+        // --- NAVEGAÇÃO E VIEWS ---
+        function showView(viewId) {
+            document.getElementById('view-terceirizados').classList.add('hidden-view');
+            document.getElementById('view-obras').classList.add('hidden-view');
+            document.getElementById('view-detalhes-obra').classList.add('hidden-view');
             
-            document.getElementById('modal-btn-confirm').onclick = fecharModal;
+            document.getElementById(viewId).classList.remove('hidden-view');
+
+            if (viewId === 'view-terceirizados') renderTerceirizados();
         }
 
-        function mostrarPrompt(titulo, mensagem, callback) {
-            document.getElementById('modal-title').innerText = titulo;
-            document.getElementById('modal-desc').innerText = mensagem;
-            const input = document.getElementById('modal-input');
-            input.style.display = 'block';
-            input.value = '';
-            document.getElementById('modal-btn-cancel').style.display = 'block';
-            document.getElementById('custom-modal').style.display = 'flex';
+        // --- MÓDULO: TERCEIRIZADOS ---
+        function renderTerceirizados() {
+            const grid = document.getElementById('grid-terceirizados');
+            grid.innerHTML = '';
             
-            document.getElementById('modal-btn-confirm').onclick = function() {
-                fecharModal();
-                if (callback) callback(input.value);
-            };
+            db.terceirizados.forEach(t => {
+                const numObras = t.obras.length;
+                const card = document.createElement('div');
+                card.className = "bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition cursor-pointer";
+                card.onclick = () => abrirTerceirizado(t.id);
+                
+                // Letra inicial
+                const inicial = t.nome.charAt(0).toUpperCase();
+
+                card.innerHTML = `
+                    <div class="flex items-center gap-4 mb-4">
+                        <div class="w-12 h-12 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold text-xl">${inicial}</div>
+                        <div>
+                            <h3 class="font-bold text-slate-800 text-lg leading-tight">${t.nome}</h3>
+                            <span class="text-xs font-medium ${t.ativo ? 'text-emerald-600 bg-emerald-50' : 'text-slate-500 bg-slate-100'} px-2 py-0.5 rounded-full mt-1 inline-block">Ativo</span>
+                        </div>
+                    </div>
+                    <div class="pt-4 border-t border-slate-100 flex justify-between items-center text-sm">
+                        <span class="text-slate-500">${numObras} obra(s) vinculada(s)</span>
+                        <span class="text-blue-600 font-medium">Acessar &rarr;</span>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
         }
 
-        function fecharModal() {
-            document.getElementById('custom-modal').style.display = 'none';
+        function novoTerceirizado() {
+            mostrarPrompt('Novo Terceirizado', 'Informe o nome do prestador de serviço:', (nome) => {
+                if (nome && nome.trim() !== '') {
+                    db.terceirizados.push({
+                        id: 'terc-' + Date.now(),
+                        nome: nome,
+                        ativo: true,
+                        obras: []
+                    });
+                    renderTerceirizados();
+                    mostrarAlerta('Sucesso', 'Terceirizado cadastrado com sucesso!', 'success');
+                }
+            }, 'single');
         }
 
+        // --- MÓDULO: OBRAS DO TERCEIRIZADO ---
+        function abrirTerceirizado(tercId) {
+            appState.terceirizadoAtivoId = tercId;
+            const terc = db.terceirizados.find(t => t.id === tercId);
+            
+            document.getElementById('header-nome-terceirizado').innerText = `Obras - ${terc.nome}`;
+            renderObras(terc);
+            showView('view-obras');
+        }
+
+        function renderObras(terc) {
+            const grid = document.getElementById('grid-obras');
+            grid.innerHTML = '';
+            
+            if (terc.obras.length === 0) {
+                grid.innerHTML = `<div class="col-span-full p-8 text-center bg-white border border-dashed border-slate-300 rounded-xl text-slate-500">Nenhuma obra cadastrada para este prestador.</div>`;
+                return;
+            }
+
+            terc.obras.forEach(o => {
+                const itensCount = o.itens ? o.itens.length : 0;
+                let statusBadge = itensCount > 0 ? '<span class="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-md font-medium">Em Andamento</span>' : '<span class="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded-md font-medium">Aguardando PDF</span>';
+
+                const card = document.createElement('div');
+                card.className = "bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition cursor-pointer flex flex-col justify-between";
+                card.onclick = () => abrirObra(o.id);
+                
+                card.innerHTML = `
+                    <div>
+                        <div class="flex justify-between items-start mb-3">
+                            <h3 class="font-bold text-slate-800 text-lg">${o.nome}</h3>
+                            ${statusBadge}
+                        </div>
+                        <p class="text-sm text-slate-500">${itensCount} peças mapeadas</p>
+                    </div>
+                    <div class="mt-5 pt-4 border-t border-slate-100 flex justify-between items-center">
+                        <button class="text-blue-600 text-sm font-medium hover:underline">Painel de Pagamentos</button>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function novaObra() {
+            mostrarPrompt('Nova Obra', 'Informe o nome ou OS da nova obra:', (nome) => {
+                if (nome && nome.trim() !== '') {
+                    const terc = db.terceirizados.find(t => t.id === appState.terceirizadoAtivoId);
+                    terc.obras.push({
+                        id: 'obra-' + Date.now(),
+                        nome: nome,
+                        itens: []
+                    });
+                    renderObras(terc);
+                    mostrarAlerta('Sucesso', 'Obra criada e vinculada ao prestador.', 'success');
+                }
+            }, 'single');
+        }
+
+        // --- STREAMING_CHUNK:Lógica de Controle de Obra (PDF, WhatsApp, Finanças)... ---
+        function getObraAtual() {
+            const terc = db.terceirizados.find(t => t.id === appState.terceirizadoAtivoId);
+            return terc.obras.find(o => o.id === appState.obraAtivaId);
+        }
+
+        function abrirObra(obraId) {
+            appState.obraAtivaId = obraId;
+            const terc = db.terceirizados.find(t => t.id === appState.terceirizadoAtivoId);
+            const obra = getObraAtual();
+
+            document.getElementById('header-nome-obra').innerText = `Obra: ${obra.nome}`;
+            document.getElementById('badge-terceirizado').innerText = `Prestador: ${terc.nome}`;
+            
+            // Reseta inputs de upload
+            document.getElementById('pdf-upload').value = '';
+            document.getElementById('texto-whatsapp').value = '';
+            
+            // Verifica status do PDF
+            const statusEl = document.getElementById('status-pdf');
+            if (obra.itens.length > 0) {
+                statusEl.innerHTML = '<span class="text-emerald-600 font-medium">✓ Base de peças carregada.</span>';
+            } else {
+                statusEl.innerHTML = 'Nenhum PDF processado na obra atual.';
+            }
+
+            atualizarResumoObra();
+            renderTabelaObra();
+            showView('view-detalhes-obra');
+        }
+
+        // PASSO 1: IMPORTAR PDF
         async function importarPDF() {
             const fileInput = document.getElementById('pdf-upload');
             const statusEl = document.getElementById('status-pdf');
@@ -182,8 +402,7 @@
                 return;
             }
 
-            statusEl.innerText = "Lendo arquivo...";
-            statusEl.className = "status-msg";
+            statusEl.innerHTML = '<span class="text-blue-500 animate-pulse">Lendo PDF...</span>';
 
             const file = fileInput.files[0];
             const fileReader = new FileReader();
@@ -199,82 +418,62 @@
                     textoCompleto += textContent.items.map(item => item.str).join(' ') + ' ';
                 }
 
-                // Identificador simulado do PDF da Obra Jean Camargo (OS 461)
-                // Num ambiente real, uma Regex forte leria "ID, Desc, m2"
-                if (textoCompleto.includes("461") || textoCompleto.includes("JEAN CAMARGO")) {
-                    statusEl.innerText = "PDF Carregado! Estrutura e metragens extraídas (Valores zerados).";
-                    statusEl.className = "status-msg status-ok";
-                    
-                    // Inicializa a base apenas com as metragens (sem valor financeiro ainda)
-                    itensOS = [
-                        { id: '1', ambiente: 'ENTRADA', desc: 'PORTA DE GIRO 01 FOLHA | LINHA 42', m2: 2.84, prod: 0, inst: 0, obs: '' },
-                        { id: '2.1', ambiente: 'WC SUÍTE E SOCIAL', desc: 'MAXIM-AR COM 01 MÓDULO | GOLD', m2: 1.28, prod: 0, inst: 0, obs: '' },
-                        { id: '2.2', ambiente: 'WC SUÍTE E SOCIAL', desc: 'MAXIM-AR COM 01 MÓDULO | GOLD', m2: 1.28, prod: 0, inst: 0, obs: '' },
-                        { id: '3.1', ambiente: 'DORMITÓRIOS', desc: 'JANELA DE CORRER INTEGRADA 02 FOLHAS | GOLD', m2: 3.81, prod: 0, inst: 0, obs: '' },
-                        { id: '3.2', ambiente: 'DORMITÓRIOS', desc: 'JANELA DE CORRER INTEGRADA 02 FOLHAS | GOLD', m2: 3.81, prod: 0, inst: 0, obs: '' },
-                        { id: '4', ambiente: 'FACHADA', desc: 'MAXIM-AR E FIXO COM 02 MÓDULOS HORIZONTAIS', m2: 5.84, prod: 0, inst: 0, obs: '' },
-                        { id: '5', ambiente: 'COZINHA', desc: 'PORTA DE CORRER 03 FOLHAS COM TODAS MÓVEIS', m2: 4.24, prod: 0, inst: 0, obs: '' },
-                        { id: '6', ambiente: 'LAVANDERIA', desc: 'PORTA DE CORRER 02 FOLHAS MÓVEIS | GOLD', m2: 3.23, prod: 0, inst: 0, obs: '' },
-                        { id: '7', ambiente: 'COZINHA', desc: 'JANELA DE CORRER 04 FOLHAS - 02 FIXAS E 02 MÓVEIS', m2: 2.00, prod: 0, inst: 0, obs: '' }
-                    ];
-                    
-                    atualizarResumo();
-                    renderizarTabela();
-                } else {
-                    statusEl.innerText = "Aviso: O PDF foi lido, mas não corresponde ao mapeamento configurado.";
-                    statusEl.className = "status-msg";
-                }
+                // Simulação da extração de PDF (Metragens e IDs sem preços)
+                const obra = getObraAtual();
+                obra.itens = [
+                    { id: '1', desc: 'PORTA DE GIRO 01 FOLHA | LINHA 42', m2: 2.84, prod: 0, inst: 0, obs: '', statusProd: '', statusInst: '' },
+                    { id: '2.1', desc: 'MAXIM-AR COM 01 MÓDULO | GOLD', m2: 1.28, prod: 0, inst: 0, obs: '', statusProd: '', statusInst: '' },
+                    { id: '3.1', desc: 'JANELA DE CORRER INTEGRADA 02 FOLHAS', m2: 3.81, prod: 0, inst: 0, obs: '', statusProd: '', statusInst: '' },
+                    { id: '4', desc: 'PORTA DE CORRER 03 FOLHAS', m2: 4.24, prod: 0, inst: 0, obs: '', statusProd: '', statusInst: '' }
+                ];
+                
+                statusEl.innerHTML = '<span class="text-emerald-600 font-medium">✓ PDF lido! Peças e metragens extraídas (R$ zerados).</span>';
+                atualizarResumoObra();
+                renderTabelaObra();
             };
-
             fileReader.readAsArrayBuffer(file);
         }
 
+        // PASSO 2: CRUZAR VALORES WPP
         function cruzarPrecos() {
-            if (itensOS.length === 0) {
-                mostrarAlerta('Atenção', 'Primeiro faça a importação do PDF para extrair as metragens.');
+            const obra = getObraAtual();
+            if (obra.itens.length === 0) {
+                mostrarAlerta('Atenção', 'Primeiro importe o PDF para carregar as peças base.');
                 return;
             }
 
-            const texto = document.getElementById('texto-whatsapp').value.toLowerCase();
+            const texto = document.getElementById('texto-whatsapp').value;
             if (!texto.trim()) {
-                mostrarAlerta('Atenção', 'Cole o texto com os valores negociados antes de cruzar.');
+                mostrarAlerta('Atenção', 'Cole o texto do WhatsApp para aplicar os valores.');
                 return;
             }
             
-            // Lógica de mapeamento inteligente baseada no texto do usuário
-            // Analisa as palavras-chave na descrição do PDF e aplica os preços informados
-            itensOS.forEach(item => {
+            // Simula o cruzamento de dados (preenchendo os valores zerados)
+            obra.itens.forEach(item => {
                 let d = item.desc.toLowerCase();
-                
-                // Simulação da inteligência de atribuição:
-                if (d.includes('giro')) {
-                    item.prod = 350; item.inst = 350;
-                } else if (d.includes('maxim-ar com 01 módulo')) {
-                    item.prod = 120; item.inst = 200;
-                } else if (d.includes('integrada')) {
-                    item.prod = 350; item.inst = 300;
-                } else if (d.includes('fachada') || d.includes('módulos horizontais')) {
-                    item.prod = 350; item.inst = 350;
-                } else if (d.includes('03 folhas')) {
-                    item.prod = 350; item.inst = 350;
-                } else if (d.includes('02 folhas móveis')) {
-                    item.prod = 250; item.inst = 260;
-                } else if (d.includes('04 folhas')) {
-                    item.prod = 180; item.inst = 200;
-                }
+                if (d.includes('giro')) { item.prod = 350; item.inst = 350; } 
+                else if (d.includes('maxim-ar')) { item.prod = 120; item.inst = 200; } 
+                else if (d.includes('integrada')) { item.prod = 350; item.inst = 300; } 
+                else { item.prod = 300; item.inst = 300; } 
             });
 
-            atualizarResumo();
-            renderizarTabela();
-            mostrarAlerta('Sucesso', 'Valores cruzados e aplicados aos itens da OS com sucesso!');
+            atualizarResumoObra();
+            renderTabelaObra();
+            mostrarAlerta('Sucesso', 'Valores do WhatsApp cruzados e aplicados às peças!', 'success');
         }
 
-        function atualizarResumo() {
-            const totalProd = itensOS.reduce((acc, item) => acc + item.prod, 0);
-            const totalInst = itensOS.reduce((acc, item) => acc + item.inst, 0);
+        // --- RENDERIZAÇÃO DA TABELA E CÁLCULOS ---
+        function atualizarResumoObra() {
+            const obra = getObraAtual();
+            let totalProd = 0, totalInst = 0, totalM2 = 0;
+
+            obra.itens.forEach(i => {
+                totalProd += i.prod;
+                totalInst += i.inst;
+                totalM2 += i.m2;
+            });
+
             const totalGlobal = totalProd + totalInst;
-            const totalM2 = itensOS.reduce((acc, item) => acc + item.m2, 0);
-            
             const limite = totalGlobal * 0.30;
             const mediaM2 = totalM2 > 0 ? (totalGlobal / totalM2) : 0;
             
@@ -284,90 +483,193 @@
             document.getElementById('media-m2').innerText = `R$ ${mediaM2.toFixed(2).replace('.', ',')}`;
         }
 
-        function renderizarTabela() {
+        function renderTabelaObra() {
+            const obra = getObraAtual();
             const tabelaCorpo = document.getElementById('tabela-corpo');
             tabelaCorpo.innerHTML = '';
             
-            itensOS.forEach((item, index) => {
+            if(obra.itens.length === 0){
+                tabelaCorpo.innerHTML = `<tr><td colspan="11" class="px-6 py-10 text-center text-slate-500">Importe o PDF e cruze os valores (Passos 1 e 2) para gerar o controle.</td></tr>`;
+                return;
+            }
+
+            obra.itens.forEach((item, index) => {
                 const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition-colors";
                 
-                // Cálculos de R$/m2 individuais
                 const subtotal = item.prod + item.inst;
-                const rmp2Prod = item.m2 > 0 && item.prod > 0 ? (item.prod / item.m2).toFixed(2).replace('.', ',') : '0,00';
-                const rmp2Inst = item.m2 > 0 && item.inst > 0 ? (item.inst / item.m2).toFixed(2).replace('.', ',') : '0,00';
-                const rmp2Total = item.m2 > 0 && subtotal > 0 ? (subtotal / item.m2).toFixed(2).replace('.', ',') : '0,00';
+                const rmp2Prod = (item.m2 > 0 && item.prod > 0) ? (item.prod / item.m2).toFixed(2).replace('.', ',') : '0,00';
+                const rmp2Inst = (item.m2 > 0 && item.inst > 0) ? (item.inst / item.m2).toFixed(2).replace('.', ',') : '0,00';
+                const rmp2Total = (item.m2 > 0 && subtotal > 0) ? (subtotal / item.m2).toFixed(2).replace('.', ',') : '0,00';
+                
+                const btnClass = "bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed hover:bg-black text-white text-xs font-bold py-1.5 px-3 rounded shadow-sm transition-colors";
                 
                 tr.innerHTML = `
-                    <td><strong>${item.id}</strong></td>
-                    <td class="text-left" style="font-size: 11px;">${item.desc}</td>
-                    <td>${item.m2.toFixed(2).replace('.', ',')} m²</td>
+                    <td class="px-4 py-3 border-b border-r border-slate-200 text-center font-bold text-slate-700">${item.id}</td>
+                    <td class="px-4 py-3 border-b border-r border-slate-200 text-xs text-slate-600 whitespace-normal break-words max-w-xs">${item.desc}</td>
+                    <td class="px-4 py-3 border-b border-r border-slate-200 text-center font-medium">${item.m2.toFixed(2).replace('.', ',')}</td>
                     
-                    <!-- Colunas de Produção -->
-                    <td>
-                        <strong>R$ ${item.prod.toFixed(2).replace('.', ',')}</strong>
+                    <!-- Produção -->
+                    <td class="px-4 py-3 border-b border-slate-200 bg-blue-50/30">
+                        <span class="font-semibold text-slate-800">R$ ${item.prod.toFixed(2).replace('.', ',')}</span>
                         <span class="valor-m2">(${rmp2Prod} R$/m²)</span>
                     </td>
-                    <td><input type="date" id="data-prod-${index}" onchange="liberarEtapa('${index}', 'prod')"></td>
-                    <td><button class="btn-success" id="btn-prod-${index}" disabled onclick="pagar('${index}', 'prod', ${item.prod})">Pagar Prod.</button></td>
+                    <td class="px-4 py-3 border-b border-slate-200 bg-blue-50/30">
+                        <input type="date" id="data-prod-${index}" onchange="togglePayBtn('${index}', 'prod')" class="p-1.5 border border-slate-300 rounded text-xs outline-none w-full ${item.statusProd === 'pago' ? 'bg-slate-100 cursor-not-allowed text-slate-400' : 'bg-white'}" ${item.statusProd === 'pago' ? 'disabled' : ''}>
+                    </td>
+                    <td class="px-4 py-3 border-b border-r border-slate-200 bg-blue-50/30 text-center">
+                        <button class="${btnClass}" id="btn-prod-${index}" disabled onclick="pagarEtapa('${index}', 'prod')">
+                            ${item.statusProd === 'pago' ? 'Pago ✓' : 'Pagar'}
+                        </button>
+                    </td>
                     
-                    <!-- Colunas de Instalação -->
-                    <td>
-                        <strong>R$ ${item.inst.toFixed(2).replace('.', ',')}</strong>
+                    <!-- Instalação -->
+                    <td class="px-4 py-3 border-b border-slate-200 bg-emerald-50/30">
+                        <span class="font-semibold text-slate-800">R$ ${item.inst.toFixed(2).replace('.', ',')}</span>
                         <span class="valor-m2">(${rmp2Inst} R$/m²)</span>
                     </td>
-                    <td><input type="date" id="data-inst-${index}" onchange="liberarEtapa('${index}', 'inst')"></td>
-                    <td><button class="btn-success" id="btn-inst-${index}" disabled onclick="pagar('${index}', 'inst', ${item.inst})">Pagar Inst.</button></td>
+                    <td class="px-4 py-3 border-b border-slate-200 bg-emerald-50/30">
+                        <input type="date" id="data-inst-${index}" onchange="togglePayBtn('${index}', 'inst')" class="p-1.5 border border-slate-300 rounded text-xs outline-none w-full ${item.statusInst === 'pago' ? 'bg-slate-100 cursor-not-allowed text-slate-400' : 'bg-white'}" ${item.statusInst === 'pago' ? 'disabled' : ''}>
+                    </td>
+                    <td class="px-4 py-3 border-b border-r border-slate-200 bg-emerald-50/30 text-center">
+                        <button class="${btnClass}" id="btn-inst-${index}" disabled onclick="pagarEtapa('${index}', 'inst')">
+                            ${item.statusInst === 'pago' ? 'Pago ✓' : 'Pagar'}
+                        </button>
+                    </td>
                     
-                    <!-- Resumo da Peça -->
-                    <td>
-                        <strong>R$ ${subtotal.toFixed(2).replace('.', ',')}</strong>
+                    <!-- Total Peça e Obs -->
+                    <td class="px-4 py-3 border-b border-slate-200">
+                        <span class="font-bold text-slate-800 text-base">R$ ${subtotal.toFixed(2).replace('.', ',')}</span>
                         <span class="valor-m2">(${rmp2Total} R$/m²)</span>
                     </td>
-                    <td>
-                        <button class="btn-obs" onclick="abrirObs('${index}')">📝</button>
+                    <td class="px-4 py-3 border-b border-slate-200 text-center">
+                        <button class="text-slate-400 hover:text-blue-600 transition-colors" onclick="anotarObs('${index}')" title="Anotações">
+                            <svg class="w-5 h-5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                        </button>
                     </td>
                 `;
                 tabelaCorpo.appendChild(tr);
-            });
-        }
 
-        function liberarEtapa(index, etapa) {
-            const dataVal = document.getElementById(`data-${etapa}-${index}`).value;
-            const btn = document.getElementById(`btn-${etapa}-${index}`);
-            
-            // Só libera o botão se a data estiver preenchida E o valor for maior que 0
-            const valorCorreto = etapa === 'prod' ? itensOS[index].prod : itensOS[index].inst;
-            
-            if (dataVal && valorCorreto > 0) {
-                btn.disabled = false;
-            } else {
-                btn.disabled = true;
-            }
-        }
-
-        function pagar(index, etapa, valor) {
-            mostrarAlerta(
-                'Pagamento Liberado', 
-                `O valor de R$ ${valor.toFixed(2)} referente à ${etapa.toUpperCase()} foi aprovado.\n\nEste evento atualizaria o limite de vales no banco de dados.`
-            );
-            
-            const btn = document.getElementById(`btn-${etapa}-${index}`);
-            btn.innerText = 'Pago ✅';
-            btn.disabled = true;
-            btn.style.backgroundColor = '#2b6cb0'; // Azul escuro para indicar concluído
-            
-            // Desabilita o campo de data para não ser alterado pós-pagamento
-            document.getElementById(`data-${etapa}-${index}`).disabled = true; 
-        }
-
-        function abrirObs(index) {
-            mostrarPrompt('Adicionar Observação', `Insira detalhes para o Item ${itensOS[index].id}:`, function(obs) {
-                if (obs && obs.trim() !== '') {
-                    itensOS[index].obs = obs;
-                    mostrarAlerta('Sucesso', 'Observação salva com sucesso.');
+                // Força o estilo visual se já estiver pago (quando re-renderiza)
+                if(item.statusProd === 'pago'){
+                    const b = document.getElementById(`btn-prod-${index}`);
+                    b.className = "bg-emerald-100 text-emerald-800 text-xs font-bold py-1.5 px-3 rounded cursor-not-allowed border border-emerald-200";
+                }
+                if(item.statusInst === 'pago'){
+                    const b = document.getElementById(`btn-inst-${index}`);
+                    b.className = "bg-emerald-100 text-emerald-800 text-xs font-bold py-1.5 px-3 rounded cursor-not-allowed border border-emerald-200";
                 }
             });
         }
+
+        // --- STREAMING_CHUNK:Lógicas de Destravamento e Sistema de Modais... ---
+        function togglePayBtn(index, etapa) {
+            const dataVal = document.getElementById(`data-${etapa}-${index}`).value;
+            const btn = document.getElementById(`btn-${etapa}-${index}`);
+            const item = getObraAtual().itens[index];
+            const valor = etapa === 'prod' ? item.prod : item.inst;
+            
+            if (dataVal && valor > 0) {
+                btn.disabled = false;
+                btn.classList.replace('bg-slate-800', 'bg-blue-600');
+                btn.classList.add('hover:bg-blue-700');
+            } else {
+                btn.disabled = true;
+                btn.classList.replace('bg-blue-600', 'bg-slate-800');
+                btn.classList.remove('hover:bg-blue-700');
+            }
+        }
+
+        function pagarEtapa(index, etapa) {
+            const item = getObraAtual().itens[index];
+            const valor = etapa === 'prod' ? item.prod : item.inst;
+            const etapaNome = etapa === 'prod' ? 'Produção' : 'Instalação';
+            
+            mostrarAlerta(
+                'Confirmação de Pagamento', 
+                `Você está autorizando o pagamento de R$ ${valor.toFixed(2)} referente à ${etapaNome} da peça ${item.id}.\n\nDeseja confirmar?`,
+                'info',
+                true,
+                () => {
+                    // Update Database
+                    if(etapa === 'prod') item.statusProd = 'pago';
+                    if(etapa === 'inst') item.statusInst = 'pago';
+                    
+                    // Re-render
+                    renderTabelaObra();
+                }
+            );
+        }
+
+        function anotarObs(index) {
+            const item = getObraAtual().itens[index];
+            mostrarPrompt('Anotações da Peça', `Observações para Item ${item.id}:`, (obs) => {
+                item.obs = obs;
+            }, 'area', item.obs);
+        }
+
+        // FUNÇÕES DO MODAL CUSTOMIZADO (Evita alerts nativos)
+        function mostrarAlerta(titulo, mensagem, tipo = 'info', exibeCancel = false, confirmCallback = null) {
+            document.getElementById('modal-title').innerText = titulo;
+            document.getElementById('modal-title').className = `text-xl font-bold mb-2 ${tipo === 'success' ? 'text-emerald-600' : 'text-blue-600'}`;
+            document.getElementById('modal-desc').innerText = mensagem;
+            
+            document.getElementById('modal-input').classList.add('hidden');
+            document.getElementById('modal-input-single').classList.add('hidden');
+            
+            const btnCancel = document.getElementById('modal-btn-cancel');
+            if(exibeCancel) btnCancel.classList.remove('hidden');
+            else btnCancel.classList.add('hidden');
+            
+            const btnConfirm = document.getElementById('modal-btn-confirm');
+            btnConfirm.innerText = 'OK';
+            btnConfirm.onclick = () => {
+                fecharModal();
+                if(confirmCallback) confirmCallback();
+            };
+            
+            document.getElementById('custom-modal').classList.add('active');
+        }
+
+        function mostrarPrompt(titulo, mensagem, callback, type = 'single', existingValue = '') {
+            document.getElementById('modal-title').innerText = titulo;
+            document.getElementById('modal-title').className = 'text-xl font-bold mb-2 text-slate-800';
+            document.getElementById('modal-desc').innerText = mensagem;
+            
+            let inputField;
+            if (type === 'single') {
+                inputField = document.getElementById('modal-input-single');
+                document.getElementById('modal-input').classList.add('hidden');
+            } else {
+                inputField = document.getElementById('modal-input');
+                document.getElementById('modal-input-single').classList.add('hidden');
+            }
+            
+            inputField.classList.remove('hidden');
+            inputField.value = existingValue || '';
+            
+            document.getElementById('modal-btn-cancel').classList.remove('hidden');
+            const btnConfirm = document.getElementById('modal-btn-confirm');
+            btnConfirm.innerText = 'Salvar';
+            
+            document.getElementById('custom-modal').classList.add('active');
+            inputField.focus();
+            
+            btnConfirm.onclick = function() {
+                fecharModal();
+                if (callback) callback(inputField.value);
+            };
+        }
+
+        function fecharModal() {
+            document.getElementById('custom-modal').classList.remove('active');
+        }
+
+        // INICIALIZAÇÃO
+        window.onload = () => {
+            showView('view-terceirizados');
+        };
+
     </script>
 </body>
 </html>
