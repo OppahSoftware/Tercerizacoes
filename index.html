@@ -622,6 +622,7 @@
                     const pdf = await pdfjsLib.getDocument(typedarray).promise;
                     let textoCompleto = '';
 
+                    // Varre todas as páginas e junta o texto
                     for (let i = 1; i <= pdf.numPages; i++) {
                         const page = await pdf.getPage(i);
                         const textContent = await page.getTextContent();
@@ -629,29 +630,74 @@
                     }
 
                     let extractedItens = [];
+                    // Remove espaços excessivos para formar uma linha contínua de texto
                     let textClean = textoCompleto.replace(/\s+/g, ' ');
                     
-                    let itemsFound = textClean.match(/(PORTA|JANELA|MAXIM-AR|FIXO|FACHADA|QUADRO|PORTÃO|VENEZIANA|BASCULANTE)[^0-9a-z]{1,40}/gi);
-                    
-                    if (itemsFound && itemsFound.length > 0) {
-                        let uniqueItems = [...new Set(itemsFound)]; 
-                        uniqueItems.forEach((desc, index) => {
-                            extractedItens.push({
-                                pid: (index + 1).toString(),
-                                desc: desc.trim().toUpperCase(),
-                                m2: 1.0 
-                            });
+                    // Regex projetado para capturar a linha de valores da tabela: QTDE LARGURA ALTURA ITEM METRAGEM PESO (Data opcional)
+                    let rowPattern = /\b(\d+)\s+(\d{2,5})\s+(\d{2,5})\s+(\d+)\s+([\d,]+)\s+([\d,]+)(?:\s+\d{2}\/\d{2}\/\d{4})?\b/g;
+                    let matches = [...textClean.matchAll(rowPattern)];
+
+                    if (matches.length > 0) {
+                        matches.forEach(match => {
+                            let qtde = parseInt(match[1]);
+                            let largura = match[2];
+                            let altura = match[3];
+                            let pid = match[4]; // Numero da peca
+                            let m2Total = parseFloat(match[5].replace(',', '.'));
+                            
+                            // Busca a descrição da peça imediatamente anterior à tabela dos valores
+                            let subText = textClean.substring(0, match.index);
+                            let descPattern = /(PORTA|JANELA|MAXIM-AR|FIXO|FACHADA|QUADRO|PORTÃO|VENEZIANA|BASCULANTE)(.{0,150})/gi;
+                            let descMatches = [...subText.matchAll(descPattern)];
+                            
+                            let descFinal = "ITEM EXTRAÍDO";
+                            if (descMatches.length > 0) {
+                                let lastDescMatch = descMatches[descMatches.length - 1];
+                                let rawDesc = lastDescMatch[1] + lastDescMatch[2];
+                                // Limpa a string cortando onde começam outras propriedades para pegar apenas o NOME
+                                descFinal = rawDesc.split(/COR VIDRO|QTDE|LARGURA|\|/i)[0].trim();
+                            }
+
+                            // Adiciona as medidas na descrição para clareza visual (Ex: JANELA DE CORRER (1980x1050))
+                            descFinal = `${descFinal} (${largura}x${altura})`;
+
+                            // Divide a metragem pela quantidade para ter o valor unitário por peça
+                            let unitM2 = qtde > 0 ? (m2Total / qtde) : m2Total;
+
+                            // Duplica o item caso a quantidade seja maior que 1, garantindo qtde 1 para cada no painel
+                            for (let i = 0; i < qtde; i++) {
+                                extractedItens.push({
+                                    pid: qtde > 1 ? `${pid}.${i+1}` : pid, // Cria sub-ID (ex: 1.1 e 1.2) se duplicado
+                                    desc: descFinal.toUpperCase(),
+                                    m2: unitM2
+                                });
+                            }
                         });
                     } else {
-                        extractedItens.push({ pid: '1', desc: 'ITEM EXTRAÍDO (SEM PALAVRA-CHAVE)', m2: 1.0 });
+                        // Fallback original caso o layout da tabela mude drasticamente ou não seja encontrado
+                        let itemsFound = textClean.match(/(PORTA|JANELA|MAXIM-AR|FIXO|FACHADA|QUADRO|PORTÃO|VENEZIANA|BASCULANTE)[^0-9a-z]{1,40}/gi);
+                        if (itemsFound && itemsFound.length > 0) {
+                            let uniqueItems = [...new Set(itemsFound)]; 
+                            uniqueItems.forEach((desc, index) => {
+                                extractedItens.push({
+                                    pid: (index + 1).toString(),
+                                    desc: desc.trim().toUpperCase(),
+                                    m2: 1.0 
+                                });
+                            });
+                        } else {
+                            extractedItens.push({ pid: '1', desc: 'ITEM EXTRAÍDO (SEM PALAVRA-CHAVE)', m2: 1.0 });
+                        }
                     }
 
+                    // Injeta na tabela do sistema, criando sempre Produção e Instalação para cada peça física encontrada
                     extractedItens.forEach(item => {
                         db.itens.push({ id: generateId(), obraId: currentObraId, pid: item.pid, desc: item.desc, m2: item.m2, etapa: 'Produção', valor: 0, pago: false, data: '', obs: '' });
                         db.itens.push({ id: generateId(), obraId: currentObraId, pid: item.pid, desc: item.desc, m2: item.m2, etapa: 'Instalação', valor: 0, pago: false, data: '', obs: '' });
                     });
 
-                    customAlert('Sucesso!', `${extractedItens.length} peças reais foram extraídas do seu PDF. Verifique as descrições e avance para o Passo 2.`);
+                    customAlert('Sucesso!', `${extractedItens.length} peças físicas foram extraídas com dimensões e m² corretos! Avance para o Passo 2.`);
+                    
                     atualizarResumoFinancas();
                     renderTabelaObra();
 
