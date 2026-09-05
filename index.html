@@ -198,7 +198,9 @@
                                 <span class="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded-md font-medium">${t.obras.length} Obra(s)</span>
                             </div>
                             <h3 class="text-lg font-bold text-slate-800">${t.nome}</h3>
-                            <p class="text-slate-500 text-sm mt-2">Clique para ver as ordens de serviço e pagamentos deste parceiro.</p>
+                            ${t.responsavel ? `<p class="text-slate-600 text-sm mt-1">👤 ${t.responsavel}</p>` : ''}
+                            ${t.telefone ? `<p class="text-slate-500 text-sm mt-1">📞 ${t.telefone}</p>` : ''}
+                            <p class="text-slate-400 text-xs mt-3 border-t border-slate-100 pt-3">Clique para ver as ordens de serviço e pagamentos.</p>
                         </div>
                     `;
                 });
@@ -246,6 +248,23 @@
                     // Calculo de total da obra para preview
                     let totalObra = o.itens ? o.itens.reduce((acc, item) => acc + (item.prod + item.inst), 0) : 0;
                     
+                    // Cálculo de itens pagos e pendentes
+                    let itensPagos = 0;
+                    let itensPendentes = 0;
+                    if (o.itens) {
+                        o.itens.forEach(it => {
+                            let itemTotal = it.prod + it.inst;
+                            if (itemTotal > 0) { // Só avalia se já houver valor lançado
+                                let pendencia = false;
+                                if (it.prod > 0 && it.statusProd !== 'Pago') pendencia = true;
+                                if (it.inst > 0 && it.statusInst !== 'Pago') pendencia = true;
+                                
+                                if (pendencia) itensPendentes++;
+                                else itensPagos++;
+                            }
+                        });
+                    }
+                    
                     html += `
                         <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 hover:border-emerald-300 transition-colors cursor-pointer group" onclick="abrirObra('${o.id}')">
                             <div class="flex justify-between items-start">
@@ -258,9 +277,12 @@
                                     <div class="font-bold text-slate-800">R$ ${totalObra.toFixed(2).replace('.', ',')}</div>
                                 </div>
                             </div>
-                            <div class="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between text-sm text-slate-500">
-                                <span>${o.itens ? o.itens.length : 0} Peças importadas</span>
-                                <span class="text-blue-600 font-medium">Acessar Painel &rarr;</span>
+                            <div class="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between text-sm">
+                                <div class="flex gap-2">
+                                    <span class="text-emerald-700 bg-emerald-50 px-2 py-1 rounded text-xs font-medium">${itensPagos} Pagos</span>
+                                    <span class="text-amber-700 bg-amber-50 px-2 py-1 rounded text-xs font-medium">${itensPendentes} a Pagar</span>
+                                </div>
+                                <span class="text-blue-600 font-medium group-hover:underline">Acessar &rarr;</span>
                             </div>
                         </div>
                     `;
@@ -409,16 +431,55 @@
         }
 
         function adicionarTerceirizado() {
+            const formHtml = `
+                <div class="space-y-3 mt-4 text-left text-sm">
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">Nome da Empresa *</label>
+                        <input type="text" id="cad-empresa" class="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Ex: P&P Esquadrias">
+                    </div>
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">Nome do Responsável</label>
+                        <input type="text" id="cad-responsavel" class="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Ex: Gabriel Paganini">
+                    </div>
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">CPF/CNPJ</label>
+                        <input type="text" id="cad-doc" class="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="000.000.000-00">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block font-medium text-slate-700 mb-1">Telefone</label>
+                            <input type="text" id="cad-tel" class="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="(00) 00000-0000">
+                        </div>
+                        <div>
+                            <label class="block font-medium text-slate-700 mb-1">Chave PIX</label>
+                            <input type="text" id="cad-pix" class="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Celular, CPF ou E-mail">
+                        </div>
+                    </div>
+                </div>
+            `;
+
             showModal({
                 title: 'Novo Terceirizado',
-                message: 'Digite o nome ou razão social do prestador:',
-                type: 'prompt',
-                onConfirm: (nome) => {
-                    if (nome && nome.trim() !== '') {
+                message: formHtml,
+                confirmText: 'Cadastrar',
+                onConfirm: () => {
+                    const empresaEl = document.getElementById('cad-empresa');
+                    const respEl = document.getElementById('cad-responsavel');
+                    const docEl = document.getElementById('cad-doc');
+                    const telEl = document.getElementById('cad-tel');
+                    const pixEl = document.getElementById('cad-pix');
+                    
+                    const nomeEmpresa = empresaEl && empresaEl.value.trim() !== '' ? empresaEl.value.trim() : null;
+                    
+                    if (nomeEmpresa) {
                         const newId = 't_' + Date.now();
                         db.terceirizados.push({
                             id: newId,
-                            nome: nome.trim(),
+                            nome: nomeEmpresa,
+                            responsavel: respEl ? respEl.value.trim() : '',
+                            documento: docEl ? docEl.value.trim() : '',
+                            telefone: telEl ? telEl.value.trim() : '',
+                            chavePix: pixEl ? pixEl.value.trim() : '',
                             obras: []
                         });
                         renderDashboard();
