@@ -586,10 +586,12 @@
                         <table class="w-full text-left border-collapse">
                             <thead class="bg-white dark:bg-gray-800 shadow-sm">
                                 <tr>
-                                    <th class="p-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">Peça / Descrição</th>
+                                    <th class="p-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">ID / Local</th>
+                                    <th class="p-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">Tipo / Descrição</th>
+                                    <th class="p-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">Medidas (M²)</th>
                                     <th class="p-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">Etapa</th>
                                     <th class="p-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">Valor (R$)</th>
-                                    <th class="p-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">Data Conclusão</th>
+                                    <th class="p-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">Data</th>
                                     <th class="p-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 text-center">Status</th>
                                 </tr>
                             </thead>
@@ -622,7 +624,6 @@
                     const pdf = await pdfjsLib.getDocument(typedarray).promise;
                     let textoCompleto = '';
 
-                    // Varre todas as páginas e junta o texto
                     for (let i = 1; i <= pdf.numPages; i++) {
                         const page = await pdf.getPage(i);
                         const textContent = await page.getTextContent();
@@ -630,11 +631,12 @@
                     }
 
                     let extractedItens = [];
-                    // Remove espaços excessivos para formar uma linha contínua de texto
-                    let textClean = textoCompleto.replace(/\s+/g, ' ');
                     
-                    // Regex projetado para capturar a linha de valores da tabela: QTDE LARGURA ALTURA ITEM METRAGEM PESO (Data opcional)
-                    let rowPattern = /\b(\d+)\s+(\d{2,5})\s+(\d{2,5})\s+(\d+)\s+([\d,]+)\s+([\d,]+)(?:\s+\d{2}\/\d{2}\/\d{4})?\b/g;
+                    // Limpeza pesada: Remove espaços excessivos e PIPES (|) que o software de engenharia coloca nas tabelas
+                    let textClean = textoCompleto.replace(/\s+/g, ' ').replace(/\|/g, ' ');
+                    
+                    // Regex calibrado exatamente para: QTDE LARGURA ALTURA ITEM METRAGEM PESO (ex: 1 1980 1050 1 2,08 19,11000)
+                    let rowPattern = /(?:^|\s)(\d+)\s+(\d{2,5})\s+(\d{2,5})\s+(\d+)\s+([\d,]+)\s+([\d,]+)/g;
                     let matches = [...textClean.matchAll(rowPattern)];
 
                     if (matches.length > 0) {
@@ -642,64 +644,63 @@
                             let qtde = parseInt(match[1]);
                             let largura = match[2];
                             let altura = match[3];
-                            let pid = match[4]; // Numero da peca
+                            let pid = match[4]; 
                             let m2Total = parseFloat(match[5].replace(',', '.'));
                             
-                            // Busca a descrição da peça imediatamente anterior à tabela dos valores
                             let subText = textClean.substring(0, match.index);
-                            let descPattern = /(PORTA|JANELA|MAXIM-AR|FIXO|FACHADA|QUADRO|PORTÃO|VENEZIANA|BASCULANTE)(.{0,150})/gi;
-                            let descMatches = [...subText.matchAll(descPattern)];
                             
-                            let descFinal = "ITEM EXTRAÍDO";
-                            if (descMatches.length > 0) {
-                                let lastDescMatch = descMatches[descMatches.length - 1];
-                                let rawDesc = lastDescMatch[1] + lastDescMatch[2];
-                                // Limpa a string cortando onde começam outras propriedades para pegar apenas o NOME
-                                descFinal = rawDesc.split(/COR VIDRO|QTDE|LARGURA|\|/i)[0].trim();
+                            // 1. Extrair Localização (Busca o bloco "*LOCAL/AMBIENTE:")
+                            let localMatch = [...subText.matchAll(/\*LOCAL\/AMBIENTE:\s*([^=*]+?)(?=\s+LINHA|\s+GOLCB|\s+PORTA|\s+JANELA|\s*$)/gi)];
+                            let localFinal = "NÃO IDENTIFICADO";
+                            if (localMatch.length > 0) {
+                                localFinal = localMatch[localMatch.length - 1][1].trim();
                             }
 
-                            // Adiciona as medidas na descrição para clareza visual (Ex: JANELA DE CORRER (1980x1050))
-                            descFinal = `${descFinal} (${largura}x${altura})`;
+                            // 2. Extrair Código/Tipo e Descrição Completa
+                            let descPattern = /(?:([A-Z0-9-]{5,20})\s*)?(PORTA|JANELA|MAXIM-AR|FIXO|FACHADA|QUADRO|PORTÃO|VENEZIANA|BASCULANTE)(.+?)(?=\s*COR VIDRO:|\s*QTDE)/gi;
+                            let descMatches = [...subText.matchAll(descPattern)];
+                            
+                            let tipoFinal = "-";
+                            let descFinal = "ITEM EXTRAÍDO";
+                            
+                            if (descMatches.length > 0) {
+                                let lastDescMatch = descMatches[descMatches.length - 1];
+                                if(lastDescMatch[1]) tipoFinal = lastDescMatch[1].trim(); // Pega código GOLCB se existir
+                                descFinal = (lastDescMatch[2] + lastDescMatch[3]).replace(/GOLD/i, '').replace(/\|/g, '').trim(); 
+                            }
 
-                            // Divide a metragem pela quantidade para ter o valor unitário por peça
+                            // 3. Regra Matemática: Divide M2 pelo total para lançar M2 individual caso exista multiplicador
                             let unitM2 = qtde > 0 ? (m2Total / qtde) : m2Total;
 
-                            // Duplica o item caso a quantidade seja maior que 1, garantindo qtde 1 para cada no painel
+                            // 4. DUPLICAÇÃO DE PEÇAS: Se qtde for 2, cria sub-IDs (1.1, 1.2) limitando Qtde a 1.
                             for (let i = 0; i < qtde; i++) {
                                 extractedItens.push({
-                                    pid: qtde > 1 ? `${pid}.${i+1}` : pid, // Cria sub-ID (ex: 1.1 e 1.2) se duplicado
+                                    pid: qtde > 1 ? `${pid}.${i+1}` : pid,
+                                    tipo: tipoFinal,
                                     desc: descFinal.toUpperCase(),
+                                    local: localFinal.toUpperCase(),
+                                    largura: largura,
+                                    altura: altura,
                                     m2: unitM2
                                 });
                             }
                         });
                     } else {
-                        // Fallback original caso o layout da tabela mude drasticamente ou não seja encontrado
-                        let itemsFound = textClean.match(/(PORTA|JANELA|MAXIM-AR|FIXO|FACHADA|QUADRO|PORTÃO|VENEZIANA|BASCULANTE)[^0-9a-z]{1,40}/gi);
-                        if (itemsFound && itemsFound.length > 0) {
-                            let uniqueItems = [...new Set(itemsFound)]; 
-                            uniqueItems.forEach((desc, index) => {
-                                extractedItens.push({
-                                    pid: (index + 1).toString(),
-                                    desc: desc.trim().toUpperCase(),
-                                    m2: 1.0 
-                                });
-                            });
-                        } else {
-                            extractedItens.push({ pid: '1', desc: 'ITEM EXTRAÍDO (SEM PALAVRA-CHAVE)', m2: 1.0 });
-                        }
+                        customAlert('Ops', 'O PDF foi lido, mas a tabela de medidas/valores não foi encontrada no formato padrão. Tente o lançamento manual.');
+                        return;
                     }
 
-                    // Injeta na tabela do sistema, criando sempre Produção e Instalação para cada peça física encontrada
+                    // Injeta Produção e Instalação para cada peça física listada
                     extractedItens.forEach(item => {
-                        db.itens.push({ id: generateId(), obraId: currentObraId, pid: item.pid, desc: item.desc, m2: item.m2, etapa: 'Produção', valor: 0, pago: false, data: '', obs: '' });
-                        db.itens.push({ id: generateId(), obraId: currentObraId, pid: item.pid, desc: item.desc, m2: item.m2, etapa: 'Instalação', valor: 0, pago: false, data: '', obs: '' });
+                        db.itens.push({ id: generateId(), obraId: currentObraId, pid: item.pid, tipo: item.tipo, desc: item.desc, local: item.local, largura: item.largura, altura: item.altura, m2: item.m2, etapa: 'Produção', valor: 0, pago: false, data: '', obs: '' });
+                        db.itens.push({ id: generateId(), obraId: currentObraId, pid: item.pid, tipo: item.tipo, desc: item.desc, local: item.local, largura: item.largura, altura: item.altura, m2: item.m2, etapa: 'Instalação', valor: 0, pago: false, data: '', obs: '' });
                     });
 
-                    customAlert('Sucesso!', `${extractedItens.length} peças físicas foram extraídas com dimensões e m² corretos! Avance para o Passo 2.`);
+                    customAlert('Sucesso!', `${extractedItens.length} peças físicas foram extraídas e listadas (Quantidade = 1 para cada)! Avance para o Passo 2.`);
                     
                     atualizarResumoFinancas();
                     renderTabelaObra();
+                    fileInput.value = ''; // Reset file input
 
                 } catch(e) {
                     console.error(e);
@@ -709,6 +710,7 @@
             fileReader.readAsArrayBuffer(file);
         }
 
+        // ... WhatsApp Logic intact ...
         function abrirWhatsAppModal() {
             const html = `
                 <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
@@ -737,7 +739,13 @@
             db.itens.forEach(item => {
                 if (item.obraId === currentObraId) {
                     const primeiraPalavra = item.desc.split(' ')[0].toLowerCase();
-                    const linhaCorrespondente = linhas.find(l => l.includes(item.pid.toLowerCase()) || l.includes(primeiraPalavra));
+                    const cleanPid = item.pid.toString().split('.')[0]; // Para lidar com peças duplicadas (1.1, 1.2)
+                    
+                    const linhaCorrespondente = linhas.find(l => 
+                        l.includes(` ${cleanPid} `) || 
+                        l.startsWith(`${cleanPid} `) || 
+                        l.includes(primeiraPalavra)
+                    );
                     
                     if (linhaCorrespondente) {
                         const nums = linhaCorrespondente.match(/\d{2,}(?:[.,]\d+)?/g);
@@ -754,9 +762,9 @@
 
             closeModal();
             if (updatedCount > 0) {
-                customAlert('Concluído', `Valores atualizados em ${updatedCount} etapas automaticamente!`);
+                customAlert('Concluído', `Valores atualizados em ${updatedCount} etapas!`);
             } else {
-                customAlert('Aviso', 'O texto foi processado, mas as descrições não cruzaram perfeitamente. Faça ajuste manual.');
+                customAlert('Aviso', 'Não foi possível fazer o cruzamento automático. O texto não contém os números das peças ou as palavras iniciais correspondentes.');
             }
             
             atualizarResumoFinancas();
@@ -776,14 +784,37 @@
                             <input type="text" id="m-pid" placeholder="Ex: 01" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Metragem (m²)</label>
-                            <input type="number" step="0.01" id="m-m2" placeholder="Ex: 1.5" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Localização</label>
+                            <input type="text" id="m-local" placeholder="Ex: COZINHA" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
                         </div>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descrição</label>
-                        <input type="text" id="m-desc" placeholder="Ex: JANELA MAXIM-AR" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipo / Código</label>
+                            <input type="text" id="m-tipo" placeholder="Ex: GOLCB-01" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descrição</label>
+                            <input type="text" id="m-desc" placeholder="Ex: JANELA DE CORRER" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                        </div>
                     </div>
+
+                    <div class="grid grid-cols-3 gap-4 border-t border-gray-100 dark:border-gray-700 pt-4 mt-2">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Largura</label>
+                            <input type="text" id="m-larg" placeholder="Ex: 1980" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Altura</label>
+                            <input type="text" id="m-alt" placeholder="Ex: 1050" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Metragem (m²)</label>
+                            <input type="number" step="0.01" id="m-m2" placeholder="Ex: 2.08" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                        </div>
+                    </div>
+
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Valor Produção (R$)</label>
@@ -805,15 +836,19 @@
 
         function salvarItemManual() {
             const pid = document.getElementById('m-pid').value || '-';
+            const local = document.getElementById('m-local').value.toUpperCase() || 'NÃO INFORMADO';
+            const tipo = document.getElementById('m-tipo').value.toUpperCase() || '-';
             const desc = document.getElementById('m-desc').value.toUpperCase();
+            const larg = document.getElementById('m-larg').value || '-';
+            const alt = document.getElementById('m-alt').value || '-';
             const m2 = parseFloat(document.getElementById('m-m2').value) || 1.0;
             const valProd = parseFloat(document.getElementById('m-val-prod').value) || 0;
             const valInst = parseFloat(document.getElementById('m-val-inst').value) || 0;
 
             if(!desc) { customAlert('Erro', 'Descrição é obrigatória'); return; }
 
-            db.itens.push({ id: generateId(), obraId: currentObraId, pid: pid, desc: desc, m2: m2, etapa: 'Produção', valor: valProd, pago: false, data: '', obs: '' });
-            db.itens.push({ id: generateId(), obraId: currentObraId, pid: pid, desc: desc, m2: m2, etapa: 'Instalação', valor: valInst, pago: false, data: '', obs: '' });
+            db.itens.push({ id: generateId(), obraId: currentObraId, pid: pid, tipo: tipo, desc: desc, local: local, largura: larg, altura: alt, m2: m2, etapa: 'Produção', valor: valProd, pago: false, data: '', obs: '' });
+            db.itens.push({ id: generateId(), obraId: currentObraId, pid: pid, tipo: tipo, desc: desc, local: local, largura: larg, altura: alt, m2: m2, etapa: 'Instalação', valor: valInst, pago: false, data: '', obs: '' });
 
             closeModal();
             atualizarResumoFinancas();
@@ -857,7 +892,7 @@
             let html = '';
 
             if (itensObra.length === 0) {
-                html = `<tr><td colspan="5" class="p-8 text-center text-gray-500 dark:text-gray-400">Nenhum item importado ainda. Faça upload do PDF ou cadastre manualmente.</td></tr>`;
+                html = `<tr><td colspan="7" class="p-8 text-center text-gray-500 dark:text-gray-400">Nenhum item importado ainda. Faça upload do PDF ou cadastre manualmente.</td></tr>`;
             } else {
                 itensObra.forEach(item => {
                     const bgClass = item.etapa === 'Produção' ? 'bg-white dark:bg-gray-800' : 'bg-gray-50/50 dark:bg-gray-800/80';
@@ -872,28 +907,46 @@
                         statusHtml = `<span class="text-xs text-gray-400 dark:text-gray-500 flex items-center justify-center gap-1"><i class="ph ph-lock-key"></i> Insira data</span>`;
                     }
 
+                    // Garantir suporte a itens antigos que não tinham essas chaves
+                    const p_local = item.local || '-';
+                    const p_tipo = item.tipo || '-';
+                    const p_largura = item.largura || '-';
+                    const p_altura = item.altura || '-';
+
                     html += `
                         <tr class="${bgClass} hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors group">
-                            <td class="p-4">
-                                <div class="font-medium text-gray-900 dark:text-white text-sm">
-                                    <span class="text-gray-400 dark:text-gray-500 font-mono mr-1">[${item.pid}]</span> ${item.desc}
+                            <td class="p-4 align-top">
+                                <div class="font-medium text-gray-900 dark:text-white text-sm whitespace-nowrap">
+                                    <span class="text-gray-400 dark:text-gray-500 font-mono mr-1">[${item.pid}]</span>
                                 </div>
-                                <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">${item.m2.toFixed(2)} m²</div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400 mt-1 max-w-[120px] leading-tight">
+                                    <i class="ph ph-map-pin"></i> ${p_local}
+                                </div>
                             </td>
-                            <td class="p-4 text-sm text-gray-600 dark:text-gray-300 flex items-center gap-2 mt-2">
-                                ${iconeEtapa} ${item.etapa}
+                            <td class="p-4 align-top">
+                                ${p_tipo !== '-' ? `<div class="text-xs font-mono font-semibold text-brand-600 dark:text-brand-400 mb-1">${p_tipo}</div>` : ''}
+                                <div class="font-medium text-gray-800 dark:text-gray-200 text-sm max-w-[200px] leading-tight">
+                                    ${item.desc}
+                                </div>
                             </td>
-                            <td class="p-4">
+                            <td class="p-4 align-top">
+                                <div class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">L: ${p_largura} x A: ${p_altura}</div>
+                                <div class="font-semibold text-gray-800 dark:text-gray-200 text-sm mt-1">${item.m2.toFixed(2)} m²</div>
+                            </td>
+                            <td class="p-4 text-sm text-gray-600 dark:text-gray-300 align-top mt-2">
+                                <div class="flex items-center gap-2">${iconeEtapa} ${item.etapa}</div>
+                            </td>
+                            <td class="p-4 align-top">
                                 <input type="number" step="0.01" value="${item.valor}" onchange="atualizarValor('${item.id}', this.value)" class="w-24 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-brand-500 outline-none" ${item.pago ? 'disabled' : ''}>
                             </td>
-                            <td class="p-4">
+                            <td class="p-4 align-top">
                                 <input type="date" value="${item.data}" onchange="atualizarData('${item.id}', this.value)" class="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-brand-500 outline-none" ${item.pago ? 'disabled' : ''}>
                             </td>
-                            <td class="p-4 text-center">
+                            <td class="p-4 text-center align-top">
                                 ${statusHtml}
                                 <div class="mt-2 flex justify-center gap-2 no-print">
                                     <button onclick="anotar('${item.id}')" class="text-gray-400 hover:text-brand-600 transition-colors" title="Anotações"><i class="ph ph-note-pencil text-lg"></i></button>
-                                    <button onclick="excluirItem('${item.id}')" class="text-gray-400 hover:text-red-500 transition-colors" title="Excluir"><i class="ph ph-trash text-lg"></i></button>
+                                    <button onclick="excluirItemConfirm('${item.id}')" class="text-gray-400 hover:text-red-500 transition-colors" title="Excluir"><i class="ph ph-trash text-lg"></i></button>
                                 </div>
                             </td>
                         </tr>
