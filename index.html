@@ -289,6 +289,33 @@
             const t = db.terceirizados.find(x => x.id === id);
             const container = document.getElementById('app-content');
             
+            const obras = db.obras.filter(o => o.terceirizadoId === id);
+            
+            let totalObras = obras.length;
+            let obrasPagas100 = 0;
+            let valTotalGeral = 0;
+            let valPagoGeral = 0;
+
+            obras.forEach(o => {
+                const itensObra = db.itens.filter(i => i.obraId === o.id);
+                let oTotal = 0;
+                let oPago = 0;
+                itensObra.forEach(item => {
+                    oTotal += item.valor || 0;
+                    if (item.pago) oPago += item.valor || 0;
+                });
+                valTotalGeral += oTotal;
+                valPagoGeral += oPago;
+                
+                // Se a obra tem itens registrados com valor, e o total = pago, ela está 100% concluída.
+                if (itensObra.length > 0 && oTotal > 0 && oTotal === oPago) {
+                    obrasPagas100++;
+                }
+            });
+
+            let valEmAberto = valTotalGeral - valPagoGeral;
+            let obrasEmAberto = totalObras - obrasPagas100;
+
             let html = `
                 <div class="mb-6">
                     <button onclick="renderDashboard()" class="text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white flex items-center gap-1 mb-4 transition-colors">
@@ -305,11 +332,45 @@
                     </div>
                 </div>
 
+                <!-- DASHBOARD FINANCEIRO GLOBAL DO TERCEIRIZADO -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 no-print">
+                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5 border-t-4 border-t-blue-500">
+                        <div class="flex items-center gap-3 mb-1">
+                            <div class="p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg"><i class="ph ph-buildings text-lg"></i></div>
+                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">Total de Obras</p>
+                        </div>
+                        <p class="text-2xl font-bold text-gray-900 dark:text-white mt-2">${totalObras}</p>
+                    </div>
+                    
+                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5 border-t-4 border-t-orange-500">
+                        <div class="flex items-center gap-3 mb-1">
+                            <div class="p-1.5 bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-lg"><i class="ph ph-clock-countdown text-lg"></i></div>
+                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">Obras em Aberto</p>
+                        </div>
+                        <p class="text-2xl font-bold text-orange-500 mt-2">${obrasEmAberto}</p>
+                    </div>
+                    
+                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5 border-t-4 border-t-green-500">
+                        <div class="flex items-center gap-3 mb-1">
+                            <div class="p-1.5 bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-lg"><i class="ph ph-check-circle text-lg"></i></div>
+                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">Obras Pagas 100%</p>
+                        </div>
+                        <p class="text-2xl font-bold text-green-500 mt-2">${obrasPagas100}</p>
+                    </div>
+                    
+                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5 border-t-4 border-t-red-500 relative overflow-hidden">
+                        <div class="flex items-center gap-3 mb-1 relative z-10">
+                            <div class="p-1.5 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg"><i class="ph ph-warning-circle text-lg"></i></div>
+                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">Valor em Aberto (Total)</p>
+                        </div>
+                        <p class="text-2xl font-bold text-red-500 mt-2 relative z-10">${formatMoney(valEmAberto)}</p>
+                        <i class="ph ph-currency-circle-dollar text-6xl text-red-50 dark:text-red-900/20 absolute -bottom-2 -right-2"></i>
+                    </div>
+                </div>
+
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             `;
 
-            const obras = db.obras.filter(o => o.terceirizadoId === id);
-            
             if (obras.length === 0) {
                 html += `
                     <div class="col-span-full bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-dashed border-gray-300 dark:border-gray-600 p-12 text-center">
@@ -349,7 +410,7 @@
                             <div class="mb-4">
                                 <h3 class="font-bold text-lg text-gray-900 dark:text-white cursor-pointer hover:text-brand-600 transition-colors" onclick="renderObra('${o.id}')">${o.nome}</h3>
                                 <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
-                                    <div class="bg-green-500 h-2 rounded-full" style="width: ${prcConcluido}%"></div>
+                                    <div class="bg-green-500 h-2 rounded-full transition-all duration-500" style="width: ${prcConcluido}%"></div>
                                 </div>
                                 <p class="text-xs text-right mt-1 text-gray-500 dark:text-gray-400">${prcConcluido}% Pago</p>
                             </div>
