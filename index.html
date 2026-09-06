@@ -626,11 +626,11 @@
                     }
 
                     let extractedItens = [];
-                    // Limpeza de espaços duplos
+                    // Limpeza de espaços duplos e quebras de linha para criar uma string única contínua
                     let textClean = textoCompleto.replace(/\s+/g, ' ');
                     
-                    // Regex padronizada para ler a tabela: | TIPO | QTDE | LARGURA | ALTURA | ITEM | METRAGEM | LOCALIZAÇÃO |
-                    let rowPattern = /\|\s*([^|]*?)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*([\d,]+)\s*\|\s*([^|]+?)\s*\|/g;
+                    // Regex Dourada: Procura flexivelmente pela sequência (Tipo opcional) | Qtde | Larg | Alt | Item | M2 | Local
+                    let rowPattern = /(?:\|\s*)?(?:([^|]*?)\s*\|\s*)?(\d{1,3})\s*\|\s*([\d,.]+)\s*\|\s*([\d,.]+)\s*\|\s*([A-Za-z0-9.-]+)\s*\|\s*([\d,.]+)\s*\|\s*([^|]+?)\s*(?:\||$)/g;
                     
                     let matches = [...textClean.matchAll(rowPattern)];
 
@@ -638,37 +638,41 @@
                         let lastIndex = 0;
 
                         matches.forEach(match => {
-                            let tipoTable = match[1].trim();
+                            let tipoTable = match[1] ? match[1].trim() : '';
                             let qtde = parseInt(match[2]);
                             let largura = match[3];
                             let altura = match[4];
-                            let rawId = match[5]; 
+                            let rawId = match[5].trim(); 
                             let m2Total = parseFloat(match[6].replace(',', '.'));
                             let localFinal = match[7].trim();
                             
-                            // Extrai o bloco de texto imediatamente ANTES dessa linha para achar Descrição e Código Base
+                            // Pega todo o texto ANTES da tabela dessa peça para extrair a descrição
                             let subText = textClean.substring(lastIndex, match.index);
                             lastIndex = match.index + match[0].length;
+                            
+                            // Limpa cabeçalhos antigos que possam ter ficado no texto para isolar só a peça atual
+                            let cleanSubText = subText.replace(/.*(?:LOCALIZAÇÃO:|LOCALIZAÇAO:|DESCRITIVO DOS ITENS)\s*\|?/gi, '').trim();
                             
                             let descFinal = "NÃO IDENTIFICADA";
                             let codigoCima = "";
                             
-                            // Procura a âncora "COR VIDRO:" e pega o bloco de texto anterior a ela
-                            let parts = subText.split('COR VIDRO:');
-                            if (parts.length > 1) {
-                                let descBlock = parts[parts.length - 2].trim();
-                                let words = descBlock.split(' ');
+                            // Isola a descrição antes da palavra "COR VIDRO:"
+                            let parts = cleanSubText.split('COR VIDRO:');
+                            if (parts.length > 0) {
+                                let descBlock = parts[0].trim();
+                                descBlock = descBlock.replace(/^\|\s*/, '').trim(); // Remove pipes perdidos no início
                                 
-                                // O código da peça geralmente é a primeira palavra solta e contém hífens (ex: GOLCB-JC4-01)
-                                if (words[0].includes('-')) {
-                                    codigoCima = words[0].replace('*', '').trim(); // Remove asteriscos se tiver
+                                let words = descBlock.split(' ');
+                                // Se a primeira palavra tiver um hífen (ex: GOLCB-JC4-01), é o código do perfil
+                                if (words.length > 0 && words[0].includes('-')) {
+                                    codigoCima = words[0].replace('*', '').trim();
                                     descFinal = words.slice(1).join(' ').trim();
                                 } else {
                                     descFinal = descBlock;
                                 }
                             }
 
-                            // Resolver o TIPO: Se vier vazio na tabela, usa o código extraído do texto acima
+                            // Resolver o TIPO: Se vier vazio na tabela (como no Item 7), usa o código extraído do texto descritivo
                             let tipoFinal = tipoTable;
                             if (!tipoFinal || tipoFinal === '') {
                                 tipoFinal = codigoCima !== "" ? codigoCima : "-";
@@ -680,7 +684,7 @@
                             // DUPLICAÇÃO DE PEÇAS: Se qtde for > 1, cria sub-IDs (Item 3.1, Item 3.2) limitando Qtde a 1.
                             for (let i = 0; i < qtde; i++) {
                                 extractedItens.push({
-                                    pid: qtde > 1 ? `Item ${rawId}.${i+1}` : `Item ${rawId}`, // Padrão: "Item 7"
+                                    pid: qtde > 1 ? `Item ${rawId}.${i+1}` : `Item ${rawId}`, // Padroniza para "Item 7"
                                     tipo: tipoFinal,
                                     desc: descFinal.toUpperCase(),
                                     local: localFinal.toUpperCase(),
@@ -691,7 +695,7 @@
                             }
                         });
                     } else {
-                        customAlert('Ops', 'Nenhuma peça com o padrão esperado foi encontrada. A tabela não foi lida corretamente.');
+                        customAlert('Ops', 'O PDF foi lido, mas a tabela de medidas/valores não foi encontrada no formato padrão. Tente o lançamento manual.');
                         return;
                     }
 
