@@ -625,118 +625,129 @@
                         textoCompleto += textContent.items.map(item => item.str).join(' ') + ' ';
                     }
 
-                    // Limpa os pipes e espaços duplos
+                    // Limpa quebras de tabela e excesso de espaços
                     let cleanText = textoCompleto.replace(/\|/g, ' ').replace(/\s+/g, ' ');
-                    let extractedItens = [];
 
-                    // O motor usa a tag "COR VIDRO:" como delimitador universal entre as peças
-                    let blocks = cleanText.split(/COR VIDRO:/i);
+                    // MOTOR SEMÂNTICO GLOBAL: 
+                    // Busca a sequência exata de números: (Tipo opcional) Qtde Largura Altura Item M2
+                    const pattern = /(?:([A-Z0-9-]{2,})\s+)?(\d{1,3})\s+(\d{2,5})\s+(\d{2,5})\s+(\d{1,5})\s+(\d+[,.]\d{1,3})/g;
                     
-                    if (blocks.length < 2) {
-                         customAlert('Ops', 'Não encontrei o padrão de peças. O PDF de croqui precisa ter a tag "COR VIDRO:".');
-                         return;
+                    let matches = [...cleanText.matchAll(pattern)];
+                    
+                    if (matches.length === 0) {
+                        customAlert('Ops', 'O PDF foi lido, mas a tabela de medidas/valores não foi encontrada no formato padrão. Tente o lançamento manual.');
+                        return;
                     }
 
-                    // A primeira descrição fica no bloco 0
-                    let currentDesc = blocks[0].replace(/DESCRITIVO DOS ITENS/gi, '').trim();
+                    let extractedItens = [];
+                    let prevLocal = ""; // Guarda o local anterior para não duplicar na descrição
 
-                    // Loop por todos os blocos de dados
-                    for (let k = 0; k < blocks.length - 1; k++) {
-                        let dataBlock = blocks[k+1];
+                    for (let i = 0; i < matches.length; i++) {
+                        let match = matches[i];
+                        let fullMatch = match[0];
                         
-                        // Regex que caça a sequência exata de números: (Tipo?) Qtde Larg Alt Item M2
-                        let dataRegex = /(?:([A-Za-z0-9.:-]+)\s+)?(\d{1,3})\s+(\d{2,5})\s+(\d{2,5})\s+(\d{1,4})\s+(\d+,\d{2,})/;
-                        let match = dataBlock.match(dataRegex);
+                        let tipoDaTabela = match[1] || "";
+                        // Limpa palavras falsas que o PDF pode colar na coluna de Tipo
+                        const ignoreWords = ['LOCALIZACAO', 'LOCALIZAÇÃO', 'METRAGEM', 'ITEM', 'ALTURA', 'LARGURA', 'QTDE', 'TIPO', 'PRETO', 'BRANCO', 'FOSCO'];
+                        if (ignoreWords.includes(tipoDaTabela.toUpperCase().replace(/:/g, ''))) {
+                            tipoDaTabela = "";
+                        }
+
+                        let qtde = parseInt(match[2]);
+                        let larg = match[3];
+                        let alt = match[4];
+                        let rawId = match[5];
+                        let m2Total = parseFloat(match[6].replace(',', '.'));
                         
-                        if (match) {
-                            let possibleType = match[1];
-                            let qtde = parseInt(match[2]);
-                            let larg = match[3];
-                            let alt = match[4];
-                            let rawId = match[5];
-                            let m2Total = parseFloat(match[6].replace(',', '.'));
-                            
-                            let tipoFinal = possibleType;
-                            // Se puxou palavra do cabeçalho por engano, zera para pegar da descrição
-                            if (!tipoFinal || tipoFinal === "LOCALIZAÇÃO:" || tipoFinal === "QTDE." || tipoFinal === "TIPO" || tipoFinal === "METRAGEM:") {
-                                tipoFinal = "";
+                        let startIndex = match.index;
+                        let endIndex = startIndex + fullMatch.length;
+                        
+                        // --- 1. EXTRAIR A DESCRIÇÃO (Olhando para trás no texto) ---
+                        let textBefore = "";
+                        if (i === 0) {
+                            textBefore = cleanText.substring(0, startIndex);
+                        } else {
+                            let prevMatchEnd = matches[i-1].index + matches[i-1][0].length;
+                            textBefore = cleanText.substring(prevMatchEnd, startIndex);
+                        }
+                        
+                        // Limpa os cabeçalhos de tabela inúteis que ficam na frente da descrição
+                        textBefore = textBefore.replace(/(?:TIPO|QTDE\.?|LARGURA:|ALTURA:|ITEM|METRAGEM:|LOCALIZA[CÇ][AÃ]O:?)\s*/gi, '');
+                        // Corta as informações de vidro e acessórios, deixando só a descrição pura
+                        let possibleDesc = textBefore.split(/COR VIDRO:/i)[0].trim();
+                        possibleDesc = possibleDesc.replace(/DESCRITIVO DOS ITENS/gi, '').trim();
+                        
+                        // Remove a localização da peça anterior se ela vazou para o começo do texto
+                        if (prevLocal && possibleDesc.toUpperCase().startsWith(prevLocal.toUpperCase())) {
+                            possibleDesc = possibleDesc.substring(prevLocal.length).trim();
+                        }
+                        
+                        let descWords = possibleDesc.split(/\s+/);
+                        let tipoFinal = tipoDaTabela;
+                        
+                        // Se a tabela não tinha o tipo, pega a primeira palavra da descrição (Ex: GOLCB-JC4-01)
+                        if (!tipoFinal && descWords.length > 0) {
+                            let fw = descWords[0];
+                            if (fw.includes('-') || fw.startsWith('*') || /^(JA|PCV|PPA)/i.test(fw)) {
+                                tipoFinal = fw.replace('*', ''); // Remove o * inicial se tiver
+                                descWords.shift(); // Tira o código da descrição
                             }
-
-                            // Texto que sobra após os números (Tem a Localização e a Descrição da PRÓXIMA peça)
-                            let remainder = dataBlock.substring(match.index + match[0].length).trim();
+                        }
+                        
+                        let descFinal = descWords.join(' ').replace(/^\*\s*/, '').trim();
+                        if (!descFinal) descFinal = "ITEM S/N";
+                        
+                        // --- 2. EXTRAIR A LOCALIZAÇÃO (Olhando para frente no texto) ---
+                        let textAfter = "";
+                        if (i < matches.length - 1) {
+                            textAfter = cleanText.substring(endIndex, matches[i+1].index);
+                        } else {
+                            textAfter = cleanText.substring(endIndex);
+                        }
+                        
+                        // A localização termina antes das especificações de vidro do PRÓXIMO item
+                        let cleanAfter = textAfter.split(/COR VIDRO:/i)[0].trim();
+                        let afterWords = cleanAfter.split(/\s+/);
+                        let endLocalIdx = afterWords.length;
+                        
+                        // Palavras-chave que indicam que a Localização acabou e começou a descrição da próxima peça
+                        const breakWords = ['JANELA', 'PORTA', 'MAXIM-AR', 'QUADRO', 'FIXO', 'VENEZIANA', 'PORTÃO', 'ALÇAPÃO', 'BRISE', 'TOTAL', 'ITENS'];
+                        
+                        for (let j = 0; j < afterWords.length; j++) {
+                            let w = afterWords[j].toUpperCase();
+                            if (w.includes('-') && w.length > 3) { endLocalIdx = j; break; } // Código com traço
+                            if (w.startsWith('*')) { endLocalIdx = j; break; } // Código com asterisco
+                            if (/^(JA\d|PCV\d|PPA)/.test(w)) { endLocalIdx = j; break; } // Códigos curtos
+                            if (breakWords.includes(w)) { endLocalIdx = j; break; } // Palavra-chave
+                        }
+                        
+                        let localFinal = afterWords.slice(0, endLocalIdx).join(' ').replace(/TOTAL DE ITENS.*/i, '').trim();
+                        if (!localFinal) localFinal = "NÃO INFORMADA";
+                        
+                        // Salva para a próxima iteração limpar seu texto
+                        prevLocal = localFinal;
+                        
+                        // Divisão inteligente de M2 se a quantidade for maior que 1
+                        let unitM2 = qtde > 0 ? (m2Total / qtde) : m2Total;
+                        
+                        // Adiciona as peças (Duplicando a quantidade conforme regra solicitada)
+                        for (let q = 0; q < qtde; q++) {
+                            let finalId = qtde > 1 ? `Item ${rawId}.${q+1}` : `Item ${rawId}`;
                             
-                            let words = remainder.split(/\s+/);
-                            let locWords = [];
-                            let nextDescWords = [];
-                            let foundDescStart = false;
-                            
-                            for(let w of words) {
-                                // O início da próxima peça é marcado por um código ou a palavra TOTAL
-                                let isCode = w.startsWith('*') || w.match(/^(GOLCB|JA\d|PCV|42-)/) || w === 'TOTAL';
-                                
-                                if (!foundDescStart && isCode) {
-                                    foundDescStart = true;
-                                }
-                                
-                                if (!foundDescStart) {
-                                    locWords.push(w);
-                                } else {
-                                    if (w !== 'TOTAL' && w !== 'DE' && w !== 'ITENS:' && !w.startsWith('M2')) {
-                                        nextDescWords.push(w);
-                                    }
-                                }
-                            }
-                            
-                            let localFinal = locWords.join(' ').trim() || "NÃO INFORMADA";
-                            
-                            // Limpa e resolve a descrição ATUAL
-                            let descParts = currentDesc.split(/\s+/);
-                            
-                            // Se a primeira palavra for um código (ex: GOLCB...), tira da descrição
-                            if (descParts.length > 0 && (descParts[0].includes('-') || descParts[0].startsWith('*'))) {
-                                let codDesc = descParts[0].replace('*', '');
-                                descParts.shift(); // Remove o código da descrição
-                                if (tipoFinal === "") {
-                                    tipoFinal = codDesc; // Usa o código como Tipo
-                                }
-                            }
-                            
-                            let descFinal = descParts.join(' ').replace(/^\*\s*/, '').replace(/GOLD/g, '- GOLD').trim();
-                            let unitM2 = qtde > 0 ? (m2Total / qtde) : m2Total;
-
-                            // Duplica se a quantidade for maior que 1
-                            for (let i = 0; i < qtde; i++) {
-                                let finalId = qtde > 1 ? `Item ${rawId}.${i+1}` : `Item ${rawId}`;
-                                extractedItens.push({
-                                    pid: finalId,
-                                    tipo: tipoFinal || "-",
-                                    desc: descFinal.toUpperCase(),
-                                    local: localFinal.toUpperCase(),
-                                    largura: larg,
-                                    altura: alt,
-                                    m2: unitM2
-                                });
-                            }
-
-                            // A descrição da PRÓXIMA rodada passa a ser o que sobrou
-                            currentDesc = nextDescWords.join(' ');
+                            // Cria as etapas de Produção e Instalação
+                            extractedItens.push({ id: generateId(), obraId: currentObraId, pid: finalId, tipo: tipoFinal || "-", desc: descFinal.toUpperCase(), local: localFinal.toUpperCase(), largura: larg, altura: alt, m2: unitM2, etapa: 'Produção', valor: 0, pago: false, data: '', obs: '' });
+                            extractedItens.push({ id: generateId(), obraId: currentObraId, pid: finalId, tipo: tipoFinal || "-", desc: descFinal.toUpperCase(), local: localFinal.toUpperCase(), largura: larg, altura: alt, m2: unitM2, etapa: 'Instalação', valor: 0, pago: false, data: '', obs: '' });
                         }
                     }
 
-                    if (extractedItens.length > 0) {
-                        extractedItens.forEach(item => {
-                            db.itens.push({ id: generateId(), obraId: currentObraId, pid: item.pid, tipo: item.tipo, desc: item.desc, local: item.local, largura: item.largura, altura: item.altura, m2: item.m2, etapa: 'Produção', valor: 0, pago: false, data: '', obs: '' });
-                            db.itens.push({ id: generateId(), obraId: currentObraId, pid: item.pid, tipo: item.tipo, desc: item.desc, local: item.local, largura: item.largura, altura: item.altura, m2: item.m2, etapa: 'Instalação', valor: 0, pago: false, data: '', obs: '' });
-                        });
+                    // Salva no banco de dados e atualiza a tela
+                    extractedItens.forEach(item => db.itens.push(item));
 
-                        customAlert('Sucesso!', `${extractedItens.length} peças físicas foram extraídas com precisão absoluta (ID, Tipo, Descrição, M², Local)!`);
-                        atualizarResumoFinancas();
-                        renderTabelaObra();
-                    } else {
-                        customAlert('Ops', 'O PDF foi lido, mas a tabela de medidas/valores não foi encontrada no formato padrão. Tente o lançamento manual.');
-                    }
+                    customAlert('Sucesso!', `${extractedItens.length / 2} peças físicas foram extraídas perfeitamente usando o Motor Semântico!`);
+                    atualizarResumoFinancas();
+                    renderTabelaObra();
                     
-                    fileInput.value = '';
+                    fileInput.value = ''; // Limpa o input
 
                 } catch(e) {
                     console.error(e);
