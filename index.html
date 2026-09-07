@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestão de Terceirizações</title>
+    <title>Gestão de Terceirizações Cloud</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -54,12 +54,11 @@
             <div class="flex items-center gap-2">
                 <i class="ph ph-buildings text-3xl text-brand-600 dark:text-brand-500"></i>
                 <h1 class="text-xl font-bold text-gray-900 dark:text-white">Terceirizações</h1>
-                <span class="ml-2 text-xs font-bold bg-brand-100 text-brand-700 dark:bg-brand-900/60 dark:text-brand-300 px-2.5 py-0.5 rounded-full border border-brand-200 dark:border-brand-800">v1.0</span>
+                <span class="ml-2 text-xs font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300 px-2.5 py-0.5 rounded-full border border-blue-200 dark:border-blue-800 flex items-center gap-1">
+                    <i class="ph ph-cloud-check"></i> v2.0 Cloud
+                </span>
             </div>
             <div class="flex items-center gap-4">
-                <button onclick="modalVersionamento()" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400" title="Controle de Versões (Backup)">
-                    <i class="ph ph-clock-counter-clockwise text-2xl"></i>
-                </button>
                 <div class="w-px h-6 bg-gray-300 dark:bg-gray-600"></div>
                 <button id="theme-toggle" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                     <i id="theme-icon-light" class="ph ph-sun text-2xl hidden text-gray-400 hover:text-yellow-400"></i>
@@ -147,7 +146,6 @@
             }
         });
 
-        // Configuração de Impressão
         window.onbeforeprint = () => {
             const html = document.documentElement;
             if(html.classList.contains('dark')){ html.classList.remove('dark'); }
@@ -156,6 +154,95 @@
             const html = document.documentElement;
             if(originalTheme === 'dark'){ html.classList.add('dark'); }
         };
+
+        let firestoreDb, doc, setDoc, deleteDoc, auth, userId, isCloudReady = false;
+
+        window.onload = async () => {
+            initTheme();
+            
+            // Tela de carregamento enquanto conecta no servidor Oppah
+            document.getElementById('app-content').innerHTML = `
+                <div class="col-span-full py-32 flex flex-col items-center justify-center">
+                    <i class="ph ph-spinner-gap animate-spin text-6xl text-brand-600 mb-4"></i>
+                    <h3 class="text-xl font-bold text-gray-800 dark:text-white">Conectando ao Servidor...</h3>
+                    <p class="text-gray-500 dark:text-gray-400 mt-2">Buscando banco de dados na nuvem</p>
+                </div>
+            `;
+
+            try {
+                // Importações Dinâmicas do Firebase CDN v11
+                const fbApp = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js");
+                const fbFs = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+                const fbAuth = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
+
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'terceirizacoes-app';
+                const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+
+                const app = fbApp.initializeApp(firebaseConfig);
+                firestoreDb = fbFs.getFirestore(app);
+                auth = fbAuth.getAuth(app);
+                
+                doc = fbFs.doc;
+                setDoc = fbFs.setDoc;
+                deleteDoc = fbFs.deleteDoc;
+                const collection = fbFs.collection;
+                const onSnapshot = fbFs.onSnapshot;
+
+                const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                if (token) {
+                    await fbAuth.signInWithCustomToken(auth, token);
+                } else {
+                    await fbAuth.signInAnonymously(auth);
+                }
+                
+                userId = auth.currentUser?.uid;
+                if (!userId) throw new Error("Usuário não autenticado");
+
+                isCloudReady = true;
+
+                // Watchers: Atualização em Tempo Real das Tabelas
+                onSnapshot(collection(firestoreDb, 'artifacts', appId, 'users', userId, 'terceirizados'), (snapshot) => {
+                    db.terceirizados = snapshot.docs.map(d => d.data());
+                    refreshCurrentView();
+                }, (e) => console.error(e));
+
+                onSnapshot(collection(firestoreDb, 'artifacts', appId, 'users', userId, 'obras'), (snapshot) => {
+                    db.obras = snapshot.docs.map(d => d.data());
+                    refreshCurrentView();
+                }, (e) => console.error(e));
+
+                onSnapshot(collection(firestoreDb, 'artifacts', appId, 'users', userId, 'itens'), (snapshot) => {
+                    db.itens = snapshot.docs.map(d => d.data());
+                    refreshCurrentView();
+                }, (e) => console.error(e));
+
+            } catch (e) {
+                console.error("Firebase Initialization Error:", e);
+                customAlert('Aviso de Nuvem', 'Não foi possível conectar ao banco de dados na nuvem. O sistema funcionará em modo offline temporário.');
+                renderDashboard(); // Renderiza vazio
+            }
+        };
+
+        // Funções Helpers para Banco de Dados
+        async function fsSave(colName, docId, data) {
+            if (!isCloudReady || !userId) return;
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'terceirizacoes-app';
+            try { await setDoc(doc(firestoreDb, 'artifacts', appId, 'users', userId, colName, docId), data); } 
+            catch(e) { console.error("Erro ao salvar:", e); }
+        }
+
+        async function fsDelete(colName, docId) {
+            if (!isCloudReady || !userId) return;
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'terceirizacoes-app';
+            try { await deleteDoc(doc(firestoreDb, 'artifacts', appId, 'users', userId, colName, docId)); } 
+            catch(e) { console.error("Erro ao deletar:", e); }
+        }
+
+        function refreshCurrentView() {
+            if (currentView === 'dashboard') renderDashboard();
+            if (currentView === 'terceirizado' && currentTerceirizadoId) renderTerceirizado(currentTerceirizadoId);
+            if (currentView === 'obra' && currentObraId) renderObra(currentObraId);
+        }
 
         function openModal(contentHtml) {
             const container = document.getElementById('modal-container');
@@ -221,7 +308,6 @@
         }
 
         const ImportadorPDF = {
-            // Regra Matemática: (Qtde) (Larg) (Alt) (Id) (M2)
             regexMedidas: /(?:^|\s)(\d{1,3})\s+(\d{2,5})\s+(\d{2,5})\s+(\d{1,5})\s+(\d+[,.]\d{1,3})/,
 
             async extrairTexto(file) {
@@ -258,9 +344,7 @@
                                 });
                             }
                             resolve(lines);
-                        } catch(e) {
-                            reject(e);
-                        }
+                        } catch(e) { reject(e); }
                     };
                     fileReader.onerror = () => reject(new Error("Erro na leitura local"));
                     fileReader.readAsArrayBuffer(file);
@@ -272,16 +356,13 @@
                 let currentDesc = "";
 
                 for (let i = 0; i < lines.length; i++) {
-                    // Substitui pipe por espaço e limpa sobras
                     let line = lines[i].replace(/\|/g, ' ').replace(/\s+/g, ' ').trim(); 
                     
                     if (!line || line.includes("QTDE") || line.includes("LARGURA") || line.includes("METRAGEM")) continue;
                     if (line.includes("COR VIDRO") || line.includes("COR ESQUADRIA") || line.includes("COR ACESSÓRIO")) continue;
                     
-                    // PASSO 1: Captura a Descrição Limpa (Ignorando se a primeira palavra for um código estranho)
                     if (line.match(/(JANELA|PORTA|MAXIM|FIXO|VENEZIANA|PORTÃO|QUADRO|ALÇAPÃO)/i)) {
                         let palavras = line.split(' ');
-                        // Limpa o código (ex: GOLCB-JC4-01) colado na frente da palavra Janela
                         if (palavras[0].match(/^[A-Z0-9-]{5,20}$/) && !palavras[0].match(/(JANELA|PORTA|MAXIM)/i)) {
                             line = line.substring(palavras[0].length).trim();
                         }
@@ -289,25 +370,16 @@
                         continue; 
                     }
 
-                    // PASSO 2: REGRA DA IMAGEM "Não usar o código"
-                    // Se a linha for apenas um código (Ex: GOLCB-JC4-01), o sistema ignora para não bagunçar a extração.
-                    if (line.match(/^[A-Z0-9-]{5,25}$/) && !line.match(/(JANELA|PORTA|MAXIM|FIXO)/i)) {
-                        continue; 
-                    }
+                    if (line.match(/^[A-Z0-9-]{5,25}$/) && !line.match(/(JANELA|PORTA|MAXIM|FIXO)/i)) continue; 
 
-                    // PASSO 3: Identificar a Tabela Física com Matemática
                     let match = line.match(this.regexMedidas);
                     if (match) {
                         let indexDoMatch = match.index;
-                        
                         let textBefore = line.substring(0, indexDoMatch).trim();
                         let textAfter = line.substring(indexDoMatch + match[0].length).trim();
                         
-                        // Captura o TIPO apenas se ele estiver preenchido antes dos números (ex: JA04). Se for vazio, põe "-"
                         let tipo = "-"; 
-                        if (textBefore && textBefore.length <= 15) {
-                            tipo = textBefore; 
-                        }
+                        if (textBefore && textBefore.length <= 15) tipo = textBefore; 
 
                         let qtde = parseInt(match[1]);
                         let larg = match[2];
@@ -315,7 +387,6 @@
                         let rawId = match[4];
                         let m2Total = parseFloat(match[5].replace(',', '.'));
                         
-                        // Captura LOCALIZAÇÃO (O que vem depois dos números)
                         let local = textAfter || "NÃO INFORMADO";
                         local = local.replace(/Este relatório.*/i, '').trim(); 
                         if(!local) local = "NÃO INFORMADO";
@@ -323,19 +394,16 @@
                         let finalDesc = currentDesc || "SEM DESCRIÇÃO";
                         let unitM2 = qtde > 0 ? (m2Total / qtde) : m2Total;
 
-                        // Adiciona as Peças no BD (Dividindo quantidades > 1 de forma independente)
                         for (let q = 0; q < qtde; q++) {
                             let finalId = qtde > 1 ? `Item ${rawId}.${q+1}` : `Item ${rawId}`;
                             
-                            // Gerando IDs únicos internamente no módulo
                             let idProd = Math.random().toString(36).substr(2, 9);
                             let idInst = Math.random().toString(36).substr(2, 9);
                             
                             extractedItens.push({ id: idProd, obraId: obraId, pid: finalId, tipo: tipo, desc: finalDesc.toUpperCase(), local: local.toUpperCase(), largura: larg, altura: alt, m2: unitM2, etapa: 'Produção', valor: 0, pago: false, data: '', obs: '' });
                             extractedItens.push({ id: idInst, obraId: obraId, pid: finalId, tipo: tipo, desc: finalDesc.toUpperCase(), local: local.toUpperCase(), largura: larg, altura: alt, m2: unitM2, etapa: 'Instalação', valor: 0, pago: false, data: '', obs: '' });
                         }
-                        
-                        currentDesc = ""; // Reseta a descrição para a próxima peça
+                        currentDesc = ""; 
                     }
                 }
                 return extractedItens;
@@ -350,13 +418,12 @@
                 <div class="flex justify-between items-center mb-8">
                     <div>
                         <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Terceirizados</h2>
-                        <p class="text-sm text-gray-500 dark:text-gray-400">Gerencie seus prestadores de serviço.</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Gerencie seus prestadores de serviço e pagamentos.</p>
                     </div>
                     <button onclick="modalNovoTerceirizado()" class="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-2">
                         <i class="ph ph-plus-circle text-xl"></i> Novo Terceirizado
                     </button>
                 </div>
-                
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             `;
 
@@ -406,30 +473,22 @@
             currentView = 'terceirizado';
             currentTerceirizadoId = id;
             const t = db.terceirizados.find(x => x.id === id);
+            if (!t) return;
             const container = document.getElementById('app-content');
-            
             const obras = db.obras.filter(o => o.terceirizadoId === id);
             
-            // Cálculos Globais do Prestador
-            let totalObras = obras.length;
-            let obrasPagas100 = 0;
-            let valTotalGeral = 0;
-            let valPagoGeral = 0;
+            let totalObras = obras.length, obrasPagas100 = 0, valTotalGeral = 0, valPagoGeral = 0;
 
             obras.forEach(o => {
                 const itensObra = db.itens.filter(i => i.obraId === o.id);
-                let oTotal = 0;
-                let oPago = 0;
+                let oTotal = 0, oPago = 0;
                 itensObra.forEach(item => {
                     oTotal += item.valor || 0;
                     if (item.pago) oPago += item.valor || 0;
                 });
                 valTotalGeral += oTotal;
                 valPagoGeral += oPago;
-                
-                if (itensObra.length > 0 && oTotal > 0 && oTotal === oPago) {
-                    obrasPagas100++;
-                }
+                if (itensObra.length > 0 && oTotal > 0 && oTotal === oPago) obrasPagas100++;
             });
 
             let valEmAberto = valTotalGeral - valPagoGeral;
@@ -451,7 +510,6 @@
                     </div>
                 </div>
 
-                <!-- Dashboard Financeiro Total -->
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 no-print">
                     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5 border-t-4 border-t-blue-500">
                         <div class="flex items-center gap-3 mb-1">
@@ -460,7 +518,6 @@
                         </div>
                         <p class="text-2xl font-bold text-gray-900 dark:text-white mt-2">${totalObras}</p>
                     </div>
-                    
                     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5 border-t-4 border-t-orange-500">
                         <div class="flex items-center gap-3 mb-1">
                             <div class="p-1.5 bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-lg"><i class="ph ph-clock-countdown text-lg"></i></div>
@@ -468,7 +525,6 @@
                         </div>
                         <p class="text-2xl font-bold text-orange-500 mt-2">${obrasEmAberto}</p>
                     </div>
-                    
                     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5 border-t-4 border-t-green-500">
                         <div class="flex items-center gap-3 mb-1">
                             <div class="p-1.5 bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-lg"><i class="ph ph-check-circle text-lg"></i></div>
@@ -476,11 +532,10 @@
                         </div>
                         <p class="text-2xl font-bold text-green-500 mt-2">${obrasPagas100}</p>
                     </div>
-                    
                     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5 border-t-4 border-t-red-500 relative overflow-hidden">
                         <div class="flex items-center gap-3 mb-1 relative z-10">
                             <div class="p-1.5 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg"><i class="ph ph-warning-circle text-lg"></i></div>
-                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">Valor em Aberto</p>
+                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">Valor em Aberto (Total)</p>
                         </div>
                         <p class="text-2xl font-bold text-red-500 mt-2 relative z-10">${formatMoney(valEmAberto)}</p>
                         <i class="ph ph-currency-circle-dollar text-6xl text-red-50 dark:text-red-900/20 absolute -bottom-2 -right-2"></i>
@@ -495,18 +550,15 @@
                     <div class="col-span-full bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-dashed border-gray-300 dark:border-gray-600 p-12 text-center">
                         <i class="ph ph-buildings text-5xl text-gray-400 dark:text-gray-500 mb-4"></i>
                         <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Nenhuma obra cadastrada</h3>
-                        <p class="text-gray-500 dark:text-gray-400 mt-1 mb-4">Crie uma obra para gerenciar o PDF e os pagamentos.</p>
+                        <p class="text-gray-500 dark:text-gray-400 mt-1 mb-4">Crie uma obra para importar os PDFs e gerenciar os pagamentos.</p>
                         <button onclick="modalNovaObra()" class="text-brand-600 dark:text-brand-400 font-medium hover:underline">Criar Nova Obra</button>
                     </div>
                 `;
             } else {
                 obras.forEach(o => {
                     const itensObra = db.itens.filter(i => i.obraId === o.id);
-                    
-                    let prodPendenteQtd = 0, prodPendenteValor = 0;
-                    let prodPagoQtd = 0, prodPagoValor = 0;
-                    let instPendenteQtd = 0, instPendenteValor = 0;
-                    let instPagoQtd = 0, instPagoValor = 0;
+                    let prodPendenteQtd = 0, prodPendenteValor = 0, prodPagoQtd = 0, prodPagoValor = 0;
+                    let instPendenteQtd = 0, instPendenteValor = 0, instPagoQtd = 0, instPagoValor = 0;
 
                     itensObra.forEach(item => {
                         if (item.etapa === 'Produção') {
@@ -562,7 +614,6 @@
                                     </div>
                                 </div>
                             </div>
-                            
                             <button onclick="renderObra('${o.id}')" class="mt-4 w-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 py-2 rounded-lg text-sm font-medium transition-colors">
                                 Abrir Painel da Obra
                             </button>
@@ -570,7 +621,6 @@
                     `;
                 });
             }
-
             html += `</div>`;
             container.innerHTML = html;
         }
@@ -584,22 +634,18 @@
                 <div class="p-6 space-y-4">
                     <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nome da Empresa</label>
                     <input type="text" id="t-empresa" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"></div>
-                    
                     <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nome do Responsável</label>
                     <input type="text" id="t-resp" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"></div>
-                    
                     <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">CPF/CNPJ</label>
                     <input type="text" id="t-doc" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"></div>
-                    
                     <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Telefone / WhatsApp</label>
                     <input type="text" id="t-tel" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"></div>
-                    
                     <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Chave PIX</label>
                     <input type="text" id="t-pix" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"></div>
                 </div>
                 <div class="px-6 py-4 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-600 flex justify-end gap-3">
                     <button onclick="closeModal()" class="px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg">Cancelar</button>
-                    <button onclick="salvarTerceirizado()" class="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700">Salvar</button>
+                    <button onclick="salvarTerceirizado()" class="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700">Salvar na Nuvem</button>
                 </div>
             `;
             openModal(html);
@@ -608,14 +654,15 @@
         function salvarTerceirizado() {
             const empresa = document.getElementById('t-empresa').value;
             if(!empresa) { customAlert('Erro', 'Nome da empresa é obrigatório'); return; }
-            db.terceirizados.push({
-                id: generateId(),
-                nome: empresa,
+            const novo = {
+                id: generateId(), nome: empresa,
                 responsavel: document.getElementById('t-resp').value || '-',
                 cpf_cnpj: document.getElementById('t-doc').value || '-',
                 telefone: document.getElementById('t-tel').value || '-',
                 pix: document.getElementById('t-pix').value || '-'
-            });
+            };
+            db.terceirizados.push(novo); // Update Visual Otimista
+            fsSave('terceirizados', novo.id, novo); // Salva na Nuvem
             closeModal();
             renderDashboard();
         }
@@ -641,22 +688,30 @@
         function salvarObra() {
             const nome = document.getElementById('o-nome').value;
             if(!nome) { customAlert('Erro', 'Nome da obra é obrigatório'); return; }
-            db.obras.push({ id: generateId(), terceirizadoId: currentTerceirizadoId, nome: nome });
+            const novaObra = { id: generateId(), terceirizadoId: currentTerceirizadoId, nome: nome };
+            db.obras.push(novaObra);
+            fsSave('obras', novaObra.id, novaObra);
             closeModal();
             renderTerceirizado(currentTerceirizadoId);
         }
 
         function excluirObra(obraId) {
-            customConfirm('Atenção!', 'Tem certeza que deseja excluir esta Obra? Todos os itens e pagamentos vinculados a ela serão apagados.', () => {
+            customConfirm('Excluir Obra e Itens', 'Tem certeza que deseja apagar essa obra da nuvem? Todos os itens vão ser apagados também.', () => {
                 db.obras = db.obras.filter(o => o.id !== obraId);
+                const itensToDelete = db.itens.filter(i => i.obraId === obraId);
                 db.itens = db.itens.filter(i => i.obraId !== obraId);
+                
+                fsDelete('obras', obraId);
+                itensToDelete.forEach(i => fsDelete('itens', i.id));
+                
                 renderTerceirizado(currentTerceirizadoId);
             });
         }
 
         function excluirItemConfirm(itemId) {
-            customConfirm('Excluir Peça?', 'Tem certeza que deseja remover esta etapa? O resumo financeiro será atualizado imediatamente.', () => {
+            customConfirm('Excluir Peça?', 'Tem certeza que deseja remover esta etapa?', () => {
                 db.itens = db.itens.filter(i => i.id !== itemId);
+                fsDelete('itens', itemId);
                 atualizarResumoFinancas();
                 renderTabelaObra();
             });
@@ -667,6 +722,7 @@
             currentObraId = id;
             const o = db.obras.find(x => x.id === id);
             const t = db.terceirizados.find(x => x.id === o.terceirizadoId);
+            if(!o || !t) return;
             const container = document.getElementById('app-content');
             
             let html = `
@@ -746,7 +802,6 @@
                     </div>
                 </div>
 
-                <!-- Tabela de Peças -->
                 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden print-break-inside-avoid">
                     <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex justify-between items-center">
                         <h3 class="font-bold text-gray-800 dark:text-white">Listagem de Peças (Produção / Instalação)</h3>
@@ -771,7 +826,6 @@
                                 </tr>
                             </thead>
                             <tbody id="tabela-corpo" class="divide-y divide-gray-100 dark:divide-gray-700">
-                                <!-- Preenchido via JS -->
                             </tbody>
                         </table>
                     </div>
@@ -785,35 +839,29 @@
 
         async function importarPDF() {
             const fileInput = document.getElementById('pdf-upload');
-            if (fileInput.files.length === 0) {
-                customAlert('Atenção', 'Selecione um arquivo PDF primeiro.');
-                return;
-            }
-
+            if (fileInput.files.length === 0) { customAlert('Atenção', 'Selecione um PDF.'); return; }
             const file = fileInput.files[0];
-            
             try {
-                // Invoca o Motor Semântico do PDF
                 const linhasExtraidas = await ImportadorPDF.extrairTexto(file);
                 const itensProcessados = ImportadorPDF.processar(linhasExtraidas, currentObraId);
-
                 if (itensProcessados.length === 0) {
-                    customAlert('Aviso', 'O PDF foi lido, mas a tabela de medidas/valores não foi encontrada no formato padrão.');
+                    customAlert('Aviso', 'A tabela de medidas não foi encontrada no formato padrão.');
                     return;
                 }
+                
+                // Salvar todos na Nuvem
+                itensProcessados.forEach(item => {
+                    db.itens.push(item);
+                    fsSave('itens', item.id, item);
+                });
 
-                // Injeta no BD
-                itensProcessados.forEach(item => db.itens.push(item));
-
-                customAlert('Sucesso!', `${itensProcessados.length / 2} peças cadastradas com sucesso! Itens múltiplos foram divididos inteligentemente.`);
+                customAlert('Sucesso na Nuvem!', `${itensProcessados.length / 2} peças sincronizadas com sucesso!`);
                 atualizarResumoFinancas();
                 renderTabelaObra();
-                
                 fileInput.value = '';
-
             } catch(e) {
                 console.error(e);
-                customAlert('Erro', 'Falha ao processar o arquivo PDF. Tente novamente.');
+                customAlert('Erro', 'Falha ao processar o arquivo PDF.');
             }
         }
 
@@ -824,7 +872,7 @@
                     <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"><i class="ph ph-x text-xl"></i></button>
                 </div>
                 <div class="p-6">
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Cole aqui o texto enviado pelo prestador informando os valores. O sistema buscará as palavras-chave e aplicará os preços detectados.</p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Cole o texto do prestador. O sistema buscará as palavras-chave e salvará na nuvem.</p>
                     <textarea id="whatsapp-text" rows="8" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-3 text-sm font-mono bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none resize-none" placeholder="Ex:\nPorta 1 - Produção 350.00 / Instalação 150.00"></textarea>
                 </div>
                 <div class="px-6 py-4 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-600 flex justify-end gap-3">
@@ -837,8 +885,7 @@
 
         function processarWhatsApp() {
             const text = document.getElementById('whatsapp-text').value;
-            if(!text.trim()) { customAlert('Aviso', 'A caixa de texto está vazia. Cole o conteúdo primeiro.'); return; }
-
+            if(!text.trim()) { customAlert('Aviso', 'A caixa vazia.'); return; }
             let updatedCount = 0;
             const linhas = text.toLowerCase().split('\n');
 
@@ -848,9 +895,7 @@
                     let cleanPid = item.pid.replace('Item ', '').split('.')[0]; 
                     
                     const linhaCorrespondente = linhas.find(l => 
-                        l.includes(` ${cleanPid} `) || 
-                        l.startsWith(`${cleanPid} `) || 
-                        l.includes(primeiraPalavra)
+                        l.includes(` ${cleanPid} `) || l.startsWith(`${cleanPid} `) || l.includes(primeiraPalavra)
                     );
                     
                     if (linhaCorrespondente) {
@@ -858,8 +903,10 @@
                         if (nums && nums.length > 0) {
                             let valProd = parseFloat(nums[0].replace(',', '.'));
                             let valInst = nums.length > 1 ? parseFloat(nums[1].replace(',', '.')) : valProd;
-                            
                             item.valor = (item.etapa === 'Produção') ? valProd : valInst;
+                            
+                            // Atualiza Cloud
+                            fsSave('itens', item.id, item);
                             updatedCount++;
                         }
                     }
@@ -867,12 +914,8 @@
             });
 
             closeModal();
-            if (updatedCount > 0) {
-                customAlert('Concluído', `Valores atualizados em ${updatedCount} etapas baseando-se no texto do WhatsApp!`);
-            } else {
-                customAlert('Aviso', 'Não foi possível fazer o cruzamento automático. Verifique se as palavras coincidem.');
-            }
-            
+            if (updatedCount > 0) customAlert('Nuvem Sincronizada', `Valores salvos em ${updatedCount} etapas baseando-se no WhatsApp!`);
+            else customAlert('Aviso', 'Nenhuma palavra coincidiu.');
             atualizarResumoFinancas();
             renderTabelaObra();
         }
@@ -885,56 +928,26 @@
                 </div>
                 <div class="p-6 space-y-4">
                     <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Item / ID (Ex: Item 10)</label>
-                            <input type="text" id="m-pid" placeholder="Item 10" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipo / Código</label>
-                            <input type="text" id="m-tipo" placeholder="Ex: JA04" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                        </div>
+                        <div><label class="block text-sm font-medium mb-1">Item / ID</label><input type="text" id="m-pid" placeholder="Item 10" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-white dark:bg-gray-700"></div>
+                        <div><label class="block text-sm font-medium mb-1">Tipo / Código</label><input type="text" id="m-tipo" placeholder="JA04" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-white dark:bg-gray-700"></div>
                     </div>
-                    
                     <div class="grid grid-cols-2 gap-4">
-                        <div class="col-span-2">
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descrição</label>
-                            <input type="text" id="m-desc" placeholder="Ex: JANELA DE CORRER 02 FOLHAS" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                        </div>
-                        <div class="col-span-2">
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Localização</label>
-                            <input type="text" id="m-local" placeholder="Ex: COZINHA" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                        </div>
+                        <div class="col-span-2"><label class="block text-sm font-medium mb-1">Descrição</label><input type="text" id="m-desc" placeholder="JANELA..." class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-white dark:bg-gray-700"></div>
+                        <div class="col-span-2"><label class="block text-sm font-medium mb-1">Localização</label><input type="text" id="m-local" placeholder="COZINHA" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-white dark:bg-gray-700"></div>
                     </div>
-
                     <div class="grid grid-cols-3 gap-4 border-t border-gray-100 dark:border-gray-700 pt-4 mt-2">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Largura</label>
-                            <input type="text" id="m-larg" placeholder="Ex: 2000" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Altura</label>
-                            <input type="text" id="m-alt" placeholder="Ex: 1000" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">M²</label>
-                            <input type="number" step="0.01" id="m-m2" placeholder="Ex: 2.00" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                        </div>
+                        <div><label class="block text-sm font-medium mb-1">Largura</label><input type="text" id="m-larg" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-white dark:bg-gray-700"></div>
+                        <div><label class="block text-sm font-medium mb-1">Altura</label><input type="text" id="m-alt" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-white dark:bg-gray-700"></div>
+                        <div><label class="block text-sm font-medium mb-1">M²</label><input type="number" step="0.01" id="m-m2" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-white dark:bg-gray-700"></div>
                     </div>
-
                     <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Valor Produção (R$)</label>
-                            <input type="number" step="0.01" id="m-val-prod" placeholder="0.00" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Valor Instalação (R$)</label>
-                            <input type="number" step="0.01" id="m-val-inst" placeholder="0.00" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                        </div>
+                        <div><label class="block text-sm font-medium mb-1">Valor Produção</label><input type="number" step="0.01" id="m-val-prod" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-white dark:bg-gray-700"></div>
+                        <div><label class="block text-sm font-medium mb-1">Valor Instalação</label><input type="number" step="0.01" id="m-val-inst" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-white dark:bg-gray-700"></div>
                     </div>
                 </div>
                 <div class="px-6 py-4 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-600 flex justify-end gap-3">
-                    <button onclick="closeModal()" class="px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg">Cancelar</button>
-                    <button onclick="salvarItemManual()" class="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700">Adicionar Item</button>
+                    <button onclick="closeModal()" class="px-4 py-2 text-gray-700 dark:text-gray-200 rounded-lg">Cancelar</button>
+                    <button onclick="salvarItemManual()" class="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700">Salvar na Nuvem</button>
                 </div>
             `;
             openModal(html);
@@ -943,19 +956,15 @@
         function salvarItemManual() {
             let pid = document.getElementById('m-pid').value || 'Item S/N';
             if(!pid.toLowerCase().includes('item')) pid = 'Item ' + pid;
-            const local = document.getElementById('m-local').value.toUpperCase() || 'NÃO INFORMADO';
-            const tipo = document.getElementById('m-tipo').value.toUpperCase() || '-';
             const desc = document.getElementById('m-desc').value.toUpperCase();
-            const larg = document.getElementById('m-larg').value || '-';
-            const alt = document.getElementById('m-alt').value || '-';
-            const m2 = parseFloat(document.getElementById('m-m2').value) || 1.0;
-            const valProd = parseFloat(document.getElementById('m-val-prod').value) || 0;
-            const valInst = parseFloat(document.getElementById('m-val-inst').value) || 0;
+            if(!desc) { customAlert('Erro', 'Descrição obrigatória'); return; }
 
-            if(!desc) { customAlert('Erro', 'Descrição é obrigatória'); return; }
-
-            db.itens.push({ id: generateId(), obraId: currentObraId, pid: pid, tipo: tipo, desc: desc, local: local, largura: larg, altura: alt, m2: m2, etapa: 'Produção', valor: valProd, pago: false, data: '', obs: '' });
-            db.itens.push({ id: generateId(), obraId: currentObraId, pid: pid, tipo: tipo, desc: desc, local: local, largura: larg, altura: alt, m2: m2, etapa: 'Instalação', valor: valInst, pago: false, data: '', obs: '' });
+            let iProd = { id: generateId(), obraId: currentObraId, pid: pid, tipo: document.getElementById('m-tipo').value.toUpperCase()||'-', desc: desc, local: document.getElementById('m-local').value.toUpperCase()||'NÃO INFORMADO', largura: document.getElementById('m-larg').value||'-', altura: document.getElementById('m-alt').value||'-', m2: parseFloat(document.getElementById('m-m2').value)||1.0, etapa: 'Produção', valor: parseFloat(document.getElementById('m-val-prod').value)||0, pago: false, data: '', obs: '' };
+            let iInst = { ...iProd, id: generateId(), etapa: 'Instalação', valor: parseFloat(document.getElementById('m-val-inst').value)||0 };
+            
+            db.itens.push(iProd); db.itens.push(iInst);
+            fsSave('itens', iProd.id, iProd);
+            fsSave('itens', iInst.id, iInst);
 
             closeModal();
             atualizarResumoFinancas();
@@ -964,7 +973,6 @@
 
         function atualizarResumoFinancas() {
             const itensObra = db.itens.filter(i => i.obraId === currentObraId);
-            
             let tProd = 0, tInst = 0, m2Total = 0, valPago = 0, valDev = 0;
             let m2Set = new Set(); 
 
@@ -972,21 +980,15 @@
                 if(item.etapa === 'Produção') tProd += item.valor;
                 if(item.etapa === 'Instalação') tInst += item.valor;
                 if(item.pago) valPago += item.valor; else valDev += item.valor;
-                
-                if(!m2Set.has(item.pid)) {
-                    m2Total += item.m2;
-                    m2Set.add(item.pid);
-                }
+                if(!m2Set.has(item.pid)) { m2Total += item.m2; m2Set.add(item.pid); }
             });
 
             const tGeral = tProd + tInst;
-            
             document.getElementById('res-total').textContent = formatMoney(tGeral);
             document.getElementById('res-total-pago').textContent = formatMoney(valPago);
             document.getElementById('res-total-dev').textContent = formatMoney(valDev);
             document.getElementById('res-prod').textContent = formatMoney(tProd);
             document.getElementById('res-inst').textContent = formatMoney(tInst);
-
             document.getElementById('res-total-m2').textContent = (m2Total > 0 ? (tGeral / m2Total).toFixed(2) : '0.00').replace('.', ',');
             document.getElementById('res-prod-m2').textContent = (m2Total > 0 ? (tProd / m2Total).toFixed(2) : '0.00').replace('.', ',');
             document.getElementById('res-inst-m2').textContent = (m2Total > 0 ? (tInst / m2Total).toFixed(2) : '0.00').replace('.', ',');
@@ -996,43 +998,37 @@
             const itensObra = db.itens.filter(i => i.obraId === currentObraId);
             const tbody = document.getElementById('tabela-corpo');
             let html = '';
-
             if (itensObra.length === 0) {
-                html = `<tr><td colspan="10" class="p-8 text-center text-gray-500 dark:text-gray-400">Nenhum item importado ainda. Faça upload do PDF ou cadastre manualmente.</td></tr>`;
+                html = `<tr><td colspan="10" class="p-8 text-center text-gray-500">Nenhum item importado.</td></tr>`;
             } else {
                 itensObra.forEach(item => {
                     const bgClass = item.etapa === 'Produção' ? 'bg-white dark:bg-gray-800' : 'bg-gray-50/50 dark:bg-gray-800/80';
                     const iconeEtapa = item.etapa === 'Produção' ? '<i class="ph ph-hammer text-indigo-500"></i>' : '<i class="ph ph-wrench text-emerald-500"></i>';
                     
-                    let statusHtml = '';
-                    if (item.pago) {
-                        statusHtml = `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 border border-green-200 dark:border-green-800"><i class="ph ph-check"></i> Pago</span>`;
-                    } else if (item.data !== '') {
-                        statusHtml = `<button onclick="pagarItem('${item.id}')" class="no-print w-full bg-brand-600 hover:bg-brand-700 text-white text-xs py-1.5 px-3 rounded shadow-sm transition-colors font-medium">Pagar</button><span class="hidden print:inline text-orange-500">Pendente</span>`;
-                    } else {
-                        statusHtml = `<span class="text-xs text-gray-400 dark:text-gray-500 flex items-center justify-center gap-1"><i class="ph ph-lock-key"></i> Insira data</span>`;
-                    }
+                    let statusHtml = item.pago ? `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200"><i class="ph ph-check"></i> Pago</span>` : 
+                        (item.data ? `<button onclick="pagarItem('${item.id}')" class="no-print w-full bg-brand-600 text-white text-xs py-1.5 px-3 rounded shadow-sm">Pagar</button><span class="hidden print:inline text-orange-500">Pendente</span>` : 
+                        `<span class="text-xs text-gray-400"><i class="ph ph-lock-key"></i> Data pendente</span>`);
 
                     html += `
-                        <tr class="${bgClass} hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors group">
-                            <td class="p-4 align-top font-mono text-sm font-semibold text-gray-700 dark:text-gray-300 whitespace-nowrap">${item.pid}</td>
-                            <td class="p-4 align-top font-mono text-sm font-bold text-brand-600 dark:text-brand-400 whitespace-nowrap">${item.tipo}</td>
-                            <td class="p-4 align-top text-sm font-medium text-gray-800 dark:text-gray-200 min-w-[250px]">${item.desc}</td>
-                            <td class="p-4 align-top text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap"><span class="flex items-center gap-1"><i class="ph ph-map-pin"></i> ${item.local}</span></td>
-                            <td class="p-4 align-top text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">${item.largura} <span class="text-xs text-gray-400">x</span> ${item.altura}</td>
-                            <td class="p-4 align-top text-sm font-bold text-gray-800 dark:text-gray-200 whitespace-nowrap">${item.m2.toFixed(2)} m²</td>
-                            <td class="p-4 text-sm text-gray-600 dark:text-gray-300 align-top whitespace-nowrap"><div class="flex items-center gap-2">${iconeEtapa} ${item.etapa}</div></td>
-                            <td class="p-4 align-top whitespace-nowrap">
-                                <input type="number" step="0.01" value="${item.valor}" onchange="atualizarValor('${item.id}', this.value)" class="w-24 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-brand-500 outline-none" ${item.pago ? 'disabled' : ''}>
+                        <tr class="${bgClass} hover:bg-gray-50 dark:hover:bg-gray-700/50 group">
+                            <td class="p-4 align-top font-mono text-sm font-semibold">${item.pid}</td>
+                            <td class="p-4 align-top font-mono text-sm font-bold text-brand-600">${item.tipo}</td>
+                            <td class="p-4 align-top text-sm font-medium min-w-[250px]">${item.desc}</td>
+                            <td class="p-4 align-top text-sm text-gray-600 whitespace-nowrap"><i class="ph ph-map-pin"></i> ${item.local}</td>
+                            <td class="p-4 align-top text-sm text-gray-600 whitespace-nowrap">${item.largura} x ${item.altura}</td>
+                            <td class="p-4 align-top text-sm font-bold whitespace-nowrap">${item.m2.toFixed(2)} m²</td>
+                            <td class="p-4 text-sm align-top whitespace-nowrap">${iconeEtapa} ${item.etapa}</td>
+                            <td class="p-4 align-top">
+                                <input type="number" step="0.01" value="${item.valor}" onchange="atualizarValor('${item.id}', this.value)" class="w-24 px-2 py-1 text-sm border rounded bg-transparent outline-none" ${item.pago ? 'disabled' : ''}>
                             </td>
-                            <td class="p-4 align-top whitespace-nowrap">
-                                <input type="date" value="${item.data}" onchange="atualizarData('${item.id}', this.value)" class="w-[125px] px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-brand-500 outline-none" ${item.pago ? 'disabled' : ''}>
+                            <td class="p-4 align-top">
+                                <input type="date" value="${item.data}" onchange="atualizarData('${item.id}', this.value)" class="w-[125px] px-2 py-1 text-sm border rounded bg-transparent outline-none" ${item.pago ? 'disabled' : ''}>
                             </td>
                             <td class="p-4 text-center align-top min-w-[100px]">
                                 ${statusHtml}
                                 <div class="mt-2 flex justify-center gap-2 no-print">
-                                    <button onclick="anotar('${item.id}')" class="text-gray-400 hover:text-brand-600 transition-colors" title="Anotações"><i class="ph ph-note-pencil text-lg"></i></button>
-                                    <button onclick="excluirItemConfirm('${item.id}')" class="text-gray-400 hover:text-red-500 transition-colors" title="Excluir"><i class="ph ph-trash text-lg"></i></button>
+                                    <button onclick="anotar('${item.id}')" class="text-gray-400 hover:text-brand-600"><i class="ph ph-note-pencil text-lg"></i></button>
+                                    <button onclick="excluirItemConfirm('${item.id}')" class="text-gray-400 hover:text-red-500"><i class="ph ph-trash text-lg"></i></button>
                                 </div>
                             </td>
                         </tr>
@@ -1045,41 +1041,39 @@
         function atualizarValor(id, val) {
             const item = db.itens.find(i => i.id === id);
             item.valor = parseFloat(val) || 0;
+            fsSave('itens', item.id, item); // Sync to Cloud
             atualizarResumoFinancas();
         }
 
         function atualizarData(id, val) {
             const item = db.itens.find(i => i.id === id);
             item.data = val;
+            fsSave('itens', item.id, item); // Sync to Cloud
             renderTabelaObra();
         }
 
         function pagarItem(id) {
             const item = db.itens.find(i => i.id === id);
-            if (item.valor <= 0) {
-                customAlert('Aviso', 'Defina um valor maior que zero antes de pagar.');
-                return;
-            }
+            if (item.valor <= 0) { customAlert('Aviso', 'Defina valor maior que zero.'); return; }
             item.pago = true;
+            fsSave('itens', item.id, item); // Sync to Cloud
             atualizarResumoFinancas();
             renderTabelaObra();
         }
 
         function anotar(id) {
             const item = db.itens.find(i => i.id === id);
-            const obsAtual = item.obs || '';
             const html = `
-                <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                    <h3 class="text-lg font-bold text-gray-900 dark:text-white">Anotações do Item</h3>
-                    <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"><i class="ph ph-x text-xl"></i></button>
+                <div class="px-6 py-4 border-b">
+                    <h3 class="text-lg font-bold">Anotações do Item</h3>
                 </div>
                 <div class="p-6">
-                    <p class="text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">${item.desc} (${item.etapa})</p>
-                    <textarea id="nota-texto" rows="4" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white" placeholder="Escreva observações aqui...">${obsAtual}</textarea>
+                    <p class="text-sm font-medium mb-2">${item.desc}</p>
+                    <textarea id="nota-texto" rows="4" class="w-full border rounded-lg p-2 text-sm bg-transparent" placeholder="Observações...">${item.obs||''}</textarea>
                 </div>
-                <div class="px-6 py-4 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-600 flex justify-end gap-3">
-                    <button onclick="closeModal()" class="px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg">Fechar</button>
-                    <button onclick="salvarNota('${id}')" class="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700">Salvar</button>
+                <div class="px-6 py-4 bg-gray-50 flex justify-end gap-3 border-t">
+                    <button onclick="closeModal()" class="px-4 py-2 rounded-lg">Fechar</button>
+                    <button onclick="salvarNota('${id}')" class="px-4 py-2 bg-brand-600 text-white rounded-lg">Salvar Nuvem</button>
                 </div>
             `;
             openModal(html);
@@ -1088,39 +1082,23 @@
         function salvarNota(id) {
             const item = db.itens.find(i => i.id === id);
             item.obs = document.getElementById('nota-texto').value;
+            fsSave('itens', item.id, item); // Sync to Cloud
             closeModal();
         }
 
+        // --- MANTER BACKUP MANUAL MESMO COM A NUVEM ---
         function modalVersionamento() {
             const html = `
-                <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                    <h3 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><i class="ph ph-clock-counter-clockwise text-brand-500"></i> Controle de Versões (Backup)</h3>
-                    <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"><i class="ph ph-x text-xl"></i></button>
+                <div class="px-6 py-4 border-b flex justify-between items-center">
+                    <h3 class="text-lg font-bold flex items-center gap-2"><i class="ph ph-cloud-check text-brand-500"></i> Sistema em Nuvem (v2.0)</h3>
+                    <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600"><i class="ph ph-x text-xl"></i></button>
                 </div>
                 <div class="p-6 space-y-4">
-                    <p class="text-sm text-gray-600 dark:text-gray-300">O sistema armazena os dados localmente. Use esta ferramenta para salvar versões físicas do seu banco de dados e manter seu trabalho seguro.</p>
-                    
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                        <div class="border border-gray-200 dark:border-gray-600 rounded-xl p-4 bg-gray-50 dark:bg-gray-700/50 flex flex-col items-center text-center">
-                            <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mb-3">
-                                <i class="ph ph-download-simple text-2xl"></i>
-                            </div>
-                            <h4 class="font-bold text-gray-900 dark:text-white mb-1">Salvar Versão Atual</h4>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">Baixa um arquivo seguro com todos os Terceirizados, Obras e Pagamentos feitos até agora.</p>
-                            <button onclick="salvarVersaoBackup()" class="mt-auto w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg text-sm font-medium transition-colors">Fazer Backup</button>
-                        </div>
-
-                        <div class="border border-gray-200 dark:border-gray-600 rounded-xl p-4 bg-gray-50 dark:bg-gray-700/50 flex flex-col items-center text-center">
-                            <div class="w-12 h-12 bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400 rounded-full flex items-center justify-center mb-3">
-                                <i class="ph ph-upload-simple text-2xl"></i>
-                            </div>
-                            <h4 class="font-bold text-gray-900 dark:text-white mb-1">Restaurar Versão</h4>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">Carrega um arquivo de backup salvo anteriormente, recuperando todos os seus dados.</p>
-                            <label class="mt-auto w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 py-2 px-4 rounded-lg text-sm font-medium transition-colors cursor-pointer flex items-center justify-center">
-                                <input type="file" accept=".json" class="hidden" onchange="restaurarVersaoBackup(event)">
-                                <span class="flex items-center gap-2"><i class="ph ph-folder-open"></i> Abrir Arquivo</span>
-                            </label>
-                        </div>
+                    <p class="text-sm text-gray-600 dark:text-gray-300">Todos os seus dados estão seguros e sincronizados com a nuvem do Portal Oppah. No entanto, se quiser salvar uma cópia física de segurança localmente no seu computador, você pode baixar o backup.</p>
+                    <div class="border rounded-xl p-4 bg-gray-50 dark:bg-gray-700/50 flex flex-col items-center text-center">
+                        <div class="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-3"><i class="ph ph-download-simple text-2xl"></i></div>
+                        <h4 class="font-bold mb-1">Baixar Cópia Offline</h4>
+                        <button onclick="salvarVersaoBackup()" class="mt-auto w-full bg-blue-600 text-white py-2 px-4 rounded-lg text-sm font-medium">Exportar Dados</button>
                     </div>
                 </div>
             `;
@@ -1129,47 +1107,11 @@
 
         function salvarVersaoBackup() {
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(db));
-            const downloadAnchorNode = document.createElement('a');
-            const dataAtual = new Date().toISOString().split('T')[0];
-            const horaAtual = new Date().toTimeString().split(' ')[0].replace(/:/g, '-');
-            
-            downloadAnchorNode.setAttribute("href", dataStr);
-            downloadAnchorNode.setAttribute("download", `terceirizacoes-v-${dataAtual}-${horaAtual}.json`);
-            document.body.appendChild(downloadAnchorNode); 
-            downloadAnchorNode.click();
-            downloadAnchorNode.remove();
-            closeModal();
-            customAlert('Sucesso!', 'A versão atual do seu banco de dados foi salva nos seus downloads.');
+            const a = document.createElement('a');
+            a.setAttribute("href", dataStr);
+            a.setAttribute("download", `oppah-cloud-backup-${new Date().toISOString().split('T')[0]}.json`);
+            document.body.appendChild(a); a.click(); a.remove(); closeModal();
         }
-
-        function restaurarVersaoBackup(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const importedDb = JSON.parse(e.target.result);
-                    if (importedDb && importedDb.terceirizados && importedDb.obras && importedDb.itens) {
-                        db = importedDb;
-                        closeModal();
-                        customAlert('Restaurado!', 'O banco de dados foi carregado com sucesso para a versão selecionada.');
-                        renderDashboard();
-                    } else {
-                        customAlert('Erro de Leitura', 'O arquivo selecionado não possui a estrutura correta deste sistema.');
-                    }
-                } catch (error) {
-                    customAlert('Erro de Arquivo', 'Falha ao ler o arquivo. Ele pode estar corrompido.');
-                }
-                event.target.value = ''; 
-            };
-            reader.readAsText(file);
-        }
-
-        window.onload = () => {
-            initTheme();
-            renderDashboard();
-        };
     </script>
 </body>
 </html>
