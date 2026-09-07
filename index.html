@@ -1109,6 +1109,82 @@
             closeModal();
         }
 
+        // --- SISTEMA DE VERSIONAMENTO / BACKUP ---
+        function modalVersionamento() {
+            const html = `
+                <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><i class="ph ph-clock-counter-clockwise text-brand-500"></i> Controle de Versões (Backup)</h3>
+                    <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"><i class="ph ph-x text-xl"></i></button>
+                </div>
+                <div class="p-6 space-y-4">
+                    <p class="text-sm text-gray-600 dark:text-gray-300">O sistema armazena os dados localmente. Use esta ferramenta para salvar versões físicas do seu banco de dados e manter seu trabalho seguro.</p>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                        <div class="border border-gray-200 dark:border-gray-600 rounded-xl p-4 bg-gray-50 dark:bg-gray-700/50 flex flex-col items-center text-center">
+                            <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mb-3">
+                                <i class="ph ph-download-simple text-2xl"></i>
+                            </div>
+                            <h4 class="font-bold text-gray-900 dark:text-white mb-1">Salvar Versão Atual</h4>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">Baixa um arquivo seguro com todos os Terceirizados, Obras e Pagamentos feitos até agora.</p>
+                            <button onclick="salvarVersaoBackup()" class="mt-auto w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg text-sm font-medium transition-colors">Fazer Backup</button>
+                        </div>
+
+                        <div class="border border-gray-200 dark:border-gray-600 rounded-xl p-4 bg-gray-50 dark:bg-gray-700/50 flex flex-col items-center text-center">
+                            <div class="w-12 h-12 bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400 rounded-full flex items-center justify-center mb-3">
+                                <i class="ph ph-upload-simple text-2xl"></i>
+                            </div>
+                            <h4 class="font-bold text-gray-900 dark:text-white mb-1">Restaurar Versão</h4>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">Carrega um arquivo de backup salvo anteriormente, recuperando todos os seus dados.</p>
+                            <label class="mt-auto w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 py-2 px-4 rounded-lg text-sm font-medium transition-colors cursor-pointer flex items-center justify-center">
+                                <input type="file" accept=".json" class="hidden" onchange="restaurarVersaoBackup(event)">
+                                <span class="flex items-center gap-2"><i class="ph ph-folder-open"></i> Abrir Arquivo</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            `;
+            openModal(html);
+        }
+
+        function salvarVersaoBackup() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(db));
+            const downloadAnchorNode = document.createElement('a');
+            const dataAtual = new Date().toISOString().split('T')[0];
+            const horaAtual = new Date().toTimeString().split(' ')[0].replace(/:/g, '-');
+            
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", `terceirizacoes-v-${dataAtual}-${horaAtual}.json`);
+            document.body.appendChild(downloadAnchorNode); 
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+            closeModal();
+            customAlert('Sucesso!', 'A versão atual do seu banco de dados foi salva nos seus downloads.');
+        }
+
+        function restaurarVersaoBackup(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedDb = JSON.parse(e.target.result);
+                    if (importedDb && importedDb.terceirizados && importedDb.obras && importedDb.itens) {
+                        db = importedDb;
+                        closeModal();
+                        customAlert('Restaurado!', 'O banco de dados foi carregado com sucesso para a versão selecionada.');
+                        renderDashboard();
+                    } else {
+                        customAlert('Erro de Leitura', 'O arquivo selecionado não possui a estrutura correta deste sistema.');
+                    }
+                } catch (error) {
+                    customAlert('Erro de Arquivo', 'Falha ao ler o arquivo. Ele pode estar corrompido.');
+                }
+                event.target.value = ''; // Limpa o input
+            };
+            reader.readAsText(file);
+        }
+
         window.onload = () => {
             initTheme();
             renderDashboard();
