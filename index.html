@@ -59,10 +59,16 @@
                 <i class="ph ph-buildings text-3xl text-brand-600 dark:text-brand-500"></i>
                 <h1 class="text-xl font-bold text-gray-900 dark:text-white">Terceirizações</h1>
             </div>
-            <button id="theme-toggle" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                <i id="theme-icon-light" class="ph ph-sun text-2xl hidden text-gray-400 hover:text-yellow-400"></i>
-                <i id="theme-icon-dark" class="ph ph-moon text-2xl text-gray-500 hover:text-blue-400"></i>
-            </button>
+            <div class="flex items-center gap-4">
+                <button onclick="modalVersionamento()" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400" title="Controle de Versões (Backup)">
+                    <i class="ph ph-clock-counter-clockwise text-2xl"></i>
+                </button>
+                <div class="w-px h-6 bg-gray-300 dark:bg-gray-600"></div>
+                <button id="theme-toggle" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                    <i id="theme-icon-light" class="ph ph-sun text-2xl hidden text-gray-400 hover:text-yellow-400"></i>
+                    <i id="theme-icon-dark" class="ph ph-moon text-2xl text-gray-500 hover:text-blue-400"></i>
+                </button>
+            </div>
         </div>
     </header>
 
@@ -84,8 +90,7 @@
     </div>
 
     <script>
-        // Set up PDF.js worker
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+        //        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
         // Fake Database
         let db = {
@@ -99,8 +104,7 @@
         let currentObraId = null;
         let originalTheme = 'light';
 
-        // Theme Management
-        function initTheme() {
+        //        function initTheme() {
             const html = document.documentElement;
             const iconLight = document.getElementById('theme-icon-light');
             const iconDark = document.getElementById('theme-icon-dark');
@@ -160,7 +164,140 @@
         const generateId = () => Math.random().toString(36).substr(2, 9);
         const formatMoney = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
-        function openModal(contentHtml) {
+        //        // MÓDULO INTEGRADO: IMPORTADOR DE PDF (TERCEIRIZAÇÕES)
+        const ImportadorPDF = {
+            // Assinatura Matemática (Busca exatamente 5 blocos numéricos: Qtde, Larg, Alt, ID, M2)
+            regexMedidas: /(?:^|\s)(\d{1,3})\s+(\d{2,5})\s+(\d{2,5})\s+(\d{1,5})\s+(\d+[,.]\d{1,3})/,
+
+            async extrairTexto(file) {
+                return new Promise((resolve, reject) => {
+                    const fileReader = new FileReader();
+                    fileReader.onload = async function() {
+                        try {
+                            const typedarray = new Uint8Array(this.result);
+                            if (typeof pdfjsLib === 'undefined') throw new Error("PDF.js não carregado");
+                            const pdf = await pdfjsLib.getDocument(typedarray).promise;
+                            let lines = [];
+                            
+                            for (let i = 1; i <= pdf.numPages; i++) {
+                                const page = await pdf.getPage(i);
+                                const textContent = await page.getTextContent();
+                                
+                                let rows = [];
+                                textContent.items.forEach(item => {
+                                    let str = item.str.trim();
+                                    if(!str) return; 
+                                    
+                                    let y = Math.round(item.transform[5]);
+                                    let x = Math.round(item.transform[4]);
+                                    
+                                    let row = rows.find(r => Math.abs(r.y - y) <= 4);
+                                    if(row) { row.items.push({x, str}); } 
+                                    else { rows.push({y, items: [{x, str}]}); }
+                                });
+                                
+                                rows.sort((a, b) => b.y - a.y);
+                                rows.forEach(r => {
+                                    r.items.sort((a, b) => a.x - b.x);
+                                    lines.push(r.items.map(i => i.str).join(' '));
+                                });
+                            }
+                            resolve(lines);
+                        } catch(e) {
+                            reject(e);
+                        }
+                    };
+                    fileReader.onerror = () => reject(new Error("Erro na leitura local"));
+                    fileReader.readAsArrayBuffer(file);
+                });
+            },
+
+            processar(lines, obraId) {
+                let extractedItens = [];
+                let currentDesc = "";
+                let currentLocalFallback = "";
+
+                for (let i = 0; i < lines.length; i++) {
+                    // Limpa formatação da tabela
+                    let line = lines[i].replace(/\|/g, ' ').replace(/\s+/g, ' ').trim(); 
+                    
+                    if (!line || line.includes("QTDE") || line.includes("LARGURA") || line.includes("METRAGEM")) continue;
+                    if (line.includes("COR VIDRO") || line.includes("COR ESQUADRIA") || line.includes("COR ACESSÓRIO")) continue;
+                    
+                    // Captura Local Fallback 
+                    if (line.toUpperCase().includes("*LOCAL/AMBIENTE:")) {
+                        currentLocalFallback = line.substring(line.toUpperCase().indexOf(":") + 1).trim();
+                        continue;
+                    }
+                    if (line.toUpperCase().includes("LOCALIZAÇÃO:")) {
+                        currentLocalFallback = line.substring(line.toUpperCase().indexOf("LOCALIZAÇÃO:") + 12).trim();
+                        continue;
+                    }
+
+                    // 1. CAPTURAR A DESCRIÇÃO (Limpando códigos injetados se houver)
+                    if (line.match(/(JANELA|PORTA|MAXIM|FIXO|VENEZIANA|PORTÃO|QUADRO|ALÇAPÃO)/i)) {
+                        let palavras = line.split(' ');
+                        // Se a primeira palavra for um código (ex: GOLCB...), tira ela para deixar a descrição limpa
+                        if (palavras[0].match(/^[A-Z0-9-]{5,20}$/) && !palavras[0].match(/(JANELA|PORTA|MAXIM|FIXO)/i)) {
+                            line = line.substring(palavras[0].length).trim();
+                        }
+                        currentDesc = line;
+                        continue; 
+                    }
+
+                    // 2. REGRA EXATA: "NÃO USAR O CÓDIGO" (Ignora linha de código isolada)
+                    if (line.match(/^[A-Z0-9-]{5,25}$/) && !line.match(/(JANELA|PORTA|MAXIM|FIXO)/i)) {
+                        continue; 
+                    }
+
+                    // 3. PROCURAR A TABELA FÍSICA E EXTRAIR DADOS
+                    let match = line.match(this.regexMedidas);
+                    if (match) {
+                        let fullMatchString = match[0];
+                        let indexDoMatch = line.indexOf(fullMatchString);
+                        let textBefore = line.substring(0, indexDoMatch).trim();
+                        let textAfter = line.substring(indexDoMatch + fullMatchString.length).trim();
+                        
+                        let tipo = "-"; 
+                        // Se tiver algo curto antes que não seja a descrição, pega como Tipo (ex: JA04)
+                        if (textBefore && !textBefore.match(/(JANELA|PORTA|MAXIM|FIXO)/i) && textBefore.length <= 10) {
+                            tipo = textBefore; 
+                        }
+
+                        let qtde = parseInt(match[1]);
+                        let larg = match[2];
+                        let alt = match[3];
+                        let rawId = match[4];
+                        let m2Total = parseFloat(match[5].replace(',', '.'));
+                        
+                        // 4. CAPTURAR LOCALIZAÇÃO DA TABELA (Tudo o que sobrou após os números)
+                        let local = textAfter || currentLocalFallback || "NÃO INFORMADO";
+                        local = local.replace(/Este relatório.*/i, '').trim();
+                        if(!local) local = "NÃO INFORMADO";
+
+                        let finalDesc = currentDesc || "SEM DESCRIÇÃO";
+                        let unitM2 = qtde > 0 ? (m2Total / qtde) : m2Total;
+
+                        // 5. INSERIR NA BASE MULTIPLICANDO PEÇAS IGUAIS
+                        for (let q = 0; q < qtde; q++) {
+                            let finalId = qtde > 1 ? `Item ${rawId}.${q+1}` : `Item ${rawId}`;
+                            
+                            // Gera ID único aqui dentro para não depender de escopo externo
+                            let idProd = Math.random().toString(36).substr(2, 9);
+                            let idInst = Math.random().toString(36).substr(2, 9);
+                            
+                            extractedItens.push({ id: idProd, obraId: obraId, pid: finalId, tipo: tipo, desc: finalDesc.toUpperCase(), local: local.toUpperCase(), largura: larg, altura: alt, m2: unitM2, etapa: 'Produção', valor: 0, pago: false, data: '', obs: '' });
+                            extractedItens.push({ id: idInst, obraId: obraId, pid: finalId, tipo: tipo, desc: finalDesc.toUpperCase(), local: local.toUpperCase(), largura: larg, altura: alt, m2: unitM2, etapa: 'Instalação', valor: 0, pago: false, data: '', obs: '' });
+                        }
+                        
+                        currentDesc = ""; // Limpa a descrição para a próxima peça
+                    }
+                }
+                return extractedItens;
+            }
+        };
+
+        //        function openModal(contentHtml) {
             const container = document.getElementById('modal-container');
             const content = document.getElementById('modal-content');
             content.innerHTML = contentHtml;
@@ -223,7 +360,7 @@
             };
         }
 
-        function renderDashboard() {
+        //        function renderDashboard() {
             currentView = 'dashboard';
             const container = document.getElementById('app-content');
             
@@ -307,7 +444,6 @@
                 valTotalGeral += oTotal;
                 valPagoGeral += oPago;
                 
-                // Se a obra tem itens registrados com valor, e o total = pago, ela está 100% concluída.
                 if (itensObra.length > 0 && oTotal > 0 && oTotal === oPago) {
                     obrasPagas100++;
                 }
@@ -456,7 +592,7 @@
             container.innerHTML = html;
         }
 
-        function modalNovoTerceirizado() {
+        //        function modalNovoTerceirizado() {
             const html = `
                 <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
                     <h3 class="text-lg font-bold text-gray-900 dark:text-white">Novo Terceirizado</h3>
@@ -543,7 +679,7 @@
             });
         }
 
-        function renderObra(id) {
+        //        function renderObra(id) {
             currentView = 'obra';
             currentObraId = id;
             const o = db.obras.find(x => x.id === id);
@@ -627,7 +763,7 @@
                     </div>
                 </div>
 
-                <!-- Tabela de Peças - Com colunas atualizadas -->
+                <!-- Tabela de Peças -->
                 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden print-break-inside-avoid">
                     <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex justify-between items-center">
                         <h3 class="font-bold text-gray-800 dark:text-white">Listagem de Peças (Produção / Instalação)</h3>
@@ -664,8 +800,7 @@
             renderTabelaObra();
         }
 
-       // Função conectada ao Botão na Interface do Usuário
-        async function importarPDF() {
+        //        async function importarPDF() {
             const fileInput = document.getElementById('pdf-upload');
             if (fileInput.files.length === 0) {
                 customAlert('Atenção', 'Selecione um arquivo PDF primeiro.');
@@ -675,7 +810,7 @@
             const file = fileInput.files[0];
             
             try {
-                // Utilizando o Módulo Separado
+                // Utilizando o Módulo Integrado
                 const linhasExtraidas = await ImportadorPDF.extrairTexto(file);
                 const itensProcessados = ImportadorPDF.processar(linhasExtraidas, currentObraId);
 
@@ -726,10 +861,7 @@
 
             db.itens.forEach(item => {
                 if (item.obraId === currentObraId) {
-                    // Pega a primeira palavra (ex: "JANELA")
                     const primeiraPalavra = item.desc.split(' ')[0].toLowerCase();
-                    
-                    // Extrai apenas o número do ID (tira o "Item " e os decimais se tiver)
                     let cleanPid = item.pid.replace('Item ', '');
                     cleanPid = cleanPid.split('.')[0]; 
                     
@@ -763,7 +895,7 @@
             renderTabelaObra();
         }
 
-        function modalItemManual() {
+        //        function modalItemManual() {
             const html = `
                 <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
                     <h3 class="text-lg font-bold text-gray-900 dark:text-white">Adicionar Item Manual</h3>
@@ -828,7 +960,7 @@
 
         function salvarItemManual() {
             let pid = document.getElementById('m-pid').value || 'Item S/N';
-            if(!pid.toLowerCase().includes('item')) pid = 'Item ' + pid; // Força padrão
+            if(!pid.toLowerCase().includes('item')) pid = 'Item ' + pid; 
             const local = document.getElementById('m-local').value.toUpperCase() || 'NÃO INFORMADO';
             const tipo = document.getElementById('m-tipo').value.toUpperCase() || '-';
             const desc = document.getElementById('m-desc').value.toUpperCase();
@@ -852,7 +984,7 @@
             const itensObra = db.itens.filter(i => i.obraId === currentObraId);
             
             let tProd = 0, tInst = 0, m2Total = 0, valPago = 0, valDev = 0;
-            let m2Set = new Set(); // Para não contar o M2 duas vezes (Prod vs Instalação da mesma peça)
+            let m2Set = new Set(); 
 
             itensObra.forEach(item => {
                 if(item.etapa === 'Produção') tProd += item.valor;
@@ -899,55 +1031,21 @@
                         statusHtml = `<span class="text-xs text-gray-400 dark:text-gray-500 flex items-center justify-center gap-1"><i class="ph ph-lock-key"></i> Insira data</span>`;
                     }
 
-                    // Tabela Nova com as colunas perfeitamente separadas de acordo com o padrão exigido
                     html += `
                         <tr class="${bgClass} hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors group">
-                            <!-- Coluna 1: ID -->
-                            <td class="p-4 align-top font-mono text-sm font-semibold text-gray-700 dark:text-gray-300 whitespace-nowrap">
-                                ${item.pid}
-                            </td>
-                            
-                            <!-- Coluna 2: Tipo -->
-                            <td class="p-4 align-top font-mono text-sm font-bold text-brand-600 dark:text-brand-400 whitespace-nowrap">
-                                ${item.tipo}
-                            </td>
-                            
-                            <!-- Coluna 3: Descrição -->
-                            <td class="p-4 align-top text-sm font-medium text-gray-800 dark:text-gray-200 min-w-[250px]">
-                                ${item.desc}
-                            </td>
-                            
-                            <!-- Coluna 4: Localização -->
-                            <td class="p-4 align-top text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
-                                <span class="flex items-center gap-1"><i class="ph ph-map-pin"></i> ${item.local}</span>
-                            </td>
-                            
-                            <!-- Coluna 5: Medidas -->
-                            <td class="p-4 align-top text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
-                                ${item.largura} <span class="text-xs text-gray-400">x</span> ${item.altura}
-                            </td>
-                            
-                            <!-- Coluna 6: M² -->
-                            <td class="p-4 align-top text-sm font-bold text-gray-800 dark:text-gray-200 whitespace-nowrap">
-                                ${item.m2.toFixed(2)} m²
-                            </td>
-                            
-                            <!-- Coluna 7: Etapa -->
-                            <td class="p-4 text-sm text-gray-600 dark:text-gray-300 align-top whitespace-nowrap">
-                                <div class="flex items-center gap-2">${iconeEtapa} ${item.etapa}</div>
-                            </td>
-                            
-                            <!-- Coluna 8: Valor -->
+                            <td class="p-4 align-top font-mono text-sm font-semibold text-gray-700 dark:text-gray-300 whitespace-nowrap">${item.pid}</td>
+                            <td class="p-4 align-top font-mono text-sm font-bold text-brand-600 dark:text-brand-400 whitespace-nowrap">${item.tipo}</td>
+                            <td class="p-4 align-top text-sm font-medium text-gray-800 dark:text-gray-200 min-w-[250px]">${item.desc}</td>
+                            <td class="p-4 align-top text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap"><span class="flex items-center gap-1"><i class="ph ph-map-pin"></i> ${item.local}</span></td>
+                            <td class="p-4 align-top text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">${item.largura} <span class="text-xs text-gray-400">x</span> ${item.altura}</td>
+                            <td class="p-4 align-top text-sm font-bold text-gray-800 dark:text-gray-200 whitespace-nowrap">${item.m2.toFixed(2)} m²</td>
+                            <td class="p-4 text-sm text-gray-600 dark:text-gray-300 align-top whitespace-nowrap"><div class="flex items-center gap-2">${iconeEtapa} ${item.etapa}</div></td>
                             <td class="p-4 align-top whitespace-nowrap">
                                 <input type="number" step="0.01" value="${item.valor}" onchange="atualizarValor('${item.id}', this.value)" class="w-24 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-brand-500 outline-none" ${item.pago ? 'disabled' : ''}>
                             </td>
-                            
-                            <!-- Coluna 9: Data -->
                             <td class="p-4 align-top whitespace-nowrap">
                                 <input type="date" value="${item.data}" onchange="atualizarData('${item.id}', this.value)" class="w-[125px] px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-brand-500 outline-none" ${item.pago ? 'disabled' : ''}>
                             </td>
-                            
-                            <!-- Coluna 10: Status -->
                             <td class="p-4 text-center align-top min-w-[100px]">
                                 ${statusHtml}
                                 <div class="mt-2 flex justify-center gap-2 no-print">
@@ -962,7 +1060,7 @@
             tbody.innerHTML = html;
         }
 
-        function atualizarValor(id, val) {
+        //        function atualizarValor(id, val) {
             const item = db.itens.find(i => i.id === id);
             item.valor = parseFloat(val) || 0;
             atualizarResumoFinancas();
@@ -1011,7 +1109,6 @@
             closeModal();
         }
 
-        // --- SISTEMA DE VERSIONAMENTO / BACKUP ---
         function modalVersionamento() {
             const html = `
                 <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
@@ -1082,7 +1179,7 @@
                 } catch (error) {
                     customAlert('Erro de Arquivo', 'Falha ao ler o arquivo. Ele pode estar corrompido.');
                 }
-                event.target.value = ''; // Limpa o input
+                event.target.value = ''; 
             };
             reader.readAsText(file);
         }
