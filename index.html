@@ -29,11 +29,7 @@
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         body { font-family: 'Inter', sans-serif; }
         
-        .table-container {
-            max-height: 60vh;
-            overflow-y: auto;
-        }
-        
+        .table-container { max-height: 60vh; overflow-y: auto; }
         thead { position: sticky; top: 0; z-index: 10; }
         
         .modal-overlay { transition: opacity 0.2s ease-out; }
@@ -90,9 +86,8 @@
     </div>
 
     <script>
-        //        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
-        // Fake Database
         let db = {
             terceirizados: [],
             obras: [],
@@ -104,7 +99,10 @@
         let currentObraId = null;
         let originalTheme = 'light';
 
-        //        function initTheme() {
+        const generateId = () => Math.random().toString(36).substr(2, 9);
+        const formatMoney = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+
+        function initTheme() {
             const html = document.documentElement;
             const iconLight = document.getElementById('theme-icon-light');
             const iconDark = document.getElementById('theme-icon-dark');
@@ -148,156 +146,17 @@
             }
         });
 
+        // Configuração de Impressão
         window.onbeforeprint = () => {
             const html = document.documentElement;
-            if(html.classList.contains('dark')){
-                html.classList.remove('dark');
-            }
+            if(html.classList.contains('dark')){ html.classList.remove('dark'); }
         };
         window.onafterprint = () => {
             const html = document.documentElement;
-            if(originalTheme === 'dark'){
-                html.classList.add('dark');
-            }
+            if(originalTheme === 'dark'){ html.classList.add('dark'); }
         };
 
-        const generateId = () => Math.random().toString(36).substr(2, 9);
-        const formatMoney = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
-
-        //        // MÓDULO INTEGRADO: IMPORTADOR DE PDF (TERCEIRIZAÇÕES)
-        const ImportadorPDF = {
-            // Assinatura Matemática (Busca exatamente 5 blocos numéricos: Qtde, Larg, Alt, ID, M2)
-            regexMedidas: /(?:^|\s)(\d{1,3})\s+(\d{2,5})\s+(\d{2,5})\s+(\d{1,5})\s+(\d+[,.]\d{1,3})/,
-
-            async extrairTexto(file) {
-                return new Promise((resolve, reject) => {
-                    const fileReader = new FileReader();
-                    fileReader.onload = async function() {
-                        try {
-                            const typedarray = new Uint8Array(this.result);
-                            if (typeof pdfjsLib === 'undefined') throw new Error("PDF.js não carregado");
-                            const pdf = await pdfjsLib.getDocument(typedarray).promise;
-                            let lines = [];
-                            
-                            for (let i = 1; i <= pdf.numPages; i++) {
-                                const page = await pdf.getPage(i);
-                                const textContent = await page.getTextContent();
-                                
-                                let rows = [];
-                                textContent.items.forEach(item => {
-                                    let str = item.str.trim();
-                                    if(!str) return; 
-                                    
-                                    let y = Math.round(item.transform[5]);
-                                    let x = Math.round(item.transform[4]);
-                                    
-                                    let row = rows.find(r => Math.abs(r.y - y) <= 4);
-                                    if(row) { row.items.push({x, str}); } 
-                                    else { rows.push({y, items: [{x, str}]}); }
-                                });
-                                
-                                rows.sort((a, b) => b.y - a.y);
-                                rows.forEach(r => {
-                                    r.items.sort((a, b) => a.x - b.x);
-                                    lines.push(r.items.map(i => i.str).join(' '));
-                                });
-                            }
-                            resolve(lines);
-                        } catch(e) {
-                            reject(e);
-                        }
-                    };
-                    fileReader.onerror = () => reject(new Error("Erro na leitura local"));
-                    fileReader.readAsArrayBuffer(file);
-                });
-            },
-
-            processar(lines, obraId) {
-                let extractedItens = [];
-                let currentDesc = "";
-                let currentLocalFallback = "";
-
-                for (let i = 0; i < lines.length; i++) {
-                    // Limpa formatação da tabela
-                    let line = lines[i].replace(/\|/g, ' ').replace(/\s+/g, ' ').trim(); 
-                    
-                    if (!line || line.includes("QTDE") || line.includes("LARGURA") || line.includes("METRAGEM")) continue;
-                    if (line.includes("COR VIDRO") || line.includes("COR ESQUADRIA") || line.includes("COR ACESSÓRIO")) continue;
-                    
-                    // Captura Local Fallback 
-                    if (line.toUpperCase().includes("*LOCAL/AMBIENTE:")) {
-                        currentLocalFallback = line.substring(line.toUpperCase().indexOf(":") + 1).trim();
-                        continue;
-                    }
-                    if (line.toUpperCase().includes("LOCALIZAÇÃO:")) {
-                        currentLocalFallback = line.substring(line.toUpperCase().indexOf("LOCALIZAÇÃO:") + 12).trim();
-                        continue;
-                    }
-
-                    // 1. CAPTURAR A DESCRIÇÃO (Limpando códigos injetados se houver)
-                    if (line.match(/(JANELA|PORTA|MAXIM|FIXO|VENEZIANA|PORTÃO|QUADRO|ALÇAPÃO)/i)) {
-                        let palavras = line.split(' ');
-                        // Se a primeira palavra for um código (ex: GOLCB...), tira ela para deixar a descrição limpa
-                        if (palavras[0].match(/^[A-Z0-9-]{5,20}$/) && !palavras[0].match(/(JANELA|PORTA|MAXIM|FIXO)/i)) {
-                            line = line.substring(palavras[0].length).trim();
-                        }
-                        currentDesc = line;
-                        continue; 
-                    }
-
-                    // 2. REGRA EXATA: "NÃO USAR O CÓDIGO" (Ignora linha de código isolada)
-                    if (line.match(/^[A-Z0-9-]{5,25}$/) && !line.match(/(JANELA|PORTA|MAXIM|FIXO)/i)) {
-                        continue; 
-                    }
-
-                    // 3. PROCURAR A TABELA FÍSICA E EXTRAIR DADOS
-                    let match = line.match(this.regexMedidas);
-                    if (match) {
-                        let fullMatchString = match[0];
-                        let indexDoMatch = line.indexOf(fullMatchString);
-                        let textBefore = line.substring(0, indexDoMatch).trim();
-                        let textAfter = line.substring(indexDoMatch + fullMatchString.length).trim();
-                        
-                        let tipo = "-"; 
-                        // Se tiver algo curto antes que não seja a descrição, pega como Tipo (ex: JA04)
-                        if (textBefore && !textBefore.match(/(JANELA|PORTA|MAXIM|FIXO)/i) && textBefore.length <= 10) {
-                            tipo = textBefore; 
-                        }
-
-                        let qtde = parseInt(match[1]);
-                        let larg = match[2];
-                        let alt = match[3];
-                        let rawId = match[4];
-                        let m2Total = parseFloat(match[5].replace(',', '.'));
-                        
-                        // 4. CAPTURAR LOCALIZAÇÃO DA TABELA (Tudo o que sobrou após os números)
-                        let local = textAfter || currentLocalFallback || "NÃO INFORMADO";
-                        local = local.replace(/Este relatório.*/i, '').trim();
-                        if(!local) local = "NÃO INFORMADO";
-
-                        let finalDesc = currentDesc || "SEM DESCRIÇÃO";
-                        let unitM2 = qtde > 0 ? (m2Total / qtde) : m2Total;
-
-                        // 5. INSERIR NA BASE MULTIPLICANDO PEÇAS IGUAIS
-                        for (let q = 0; q < qtde; q++) {
-                            let finalId = qtde > 1 ? `Item ${rawId}.${q+1}` : `Item ${rawId}`;
-                            
-                            // Gera ID único aqui dentro para não depender de escopo externo
-                            let idProd = Math.random().toString(36).substr(2, 9);
-                            let idInst = Math.random().toString(36).substr(2, 9);
-                            
-                            extractedItens.push({ id: idProd, obraId: obraId, pid: finalId, tipo: tipo, desc: finalDesc.toUpperCase(), local: local.toUpperCase(), largura: larg, altura: alt, m2: unitM2, etapa: 'Produção', valor: 0, pago: false, data: '', obs: '' });
-                            extractedItens.push({ id: idInst, obraId: obraId, pid: finalId, tipo: tipo, desc: finalDesc.toUpperCase(), local: local.toUpperCase(), largura: larg, altura: alt, m2: unitM2, etapa: 'Instalação', valor: 0, pago: false, data: '', obs: '' });
-                        }
-                        
-                        currentDesc = ""; // Limpa a descrição para a próxima peça
-                    }
-                }
-                return extractedItens;
-            }
-        };
-
-        //        function openModal(contentHtml) {
+        function openModal(contentHtml) {
             const container = document.getElementById('modal-container');
             const content = document.getElementById('modal-content');
             content.innerHTML = contentHtml;
@@ -360,7 +219,129 @@
             };
         }
 
-        //        function renderDashboard() {
+        const ImportadorPDF = {
+            // Regra Matemática: (Qtde) (Larg) (Alt) (Id) (M2)
+            regexMedidas: /(?:^|\s)(\d{1,3})\s+(\d{2,5})\s+(\d{2,5})\s+(\d{1,5})\s+(\d+[,.]\d{1,3})/,
+
+            async extrairTexto(file) {
+                return new Promise((resolve, reject) => {
+                    const fileReader = new FileReader();
+                    fileReader.onload = async function() {
+                        try {
+                            const typedarray = new Uint8Array(this.result);
+                            if (typeof pdfjsLib === 'undefined') throw new Error("PDF.js não carregado");
+                            const pdf = await pdfjsLib.getDocument(typedarray).promise;
+                            let lines = [];
+                            
+                            for (let i = 1; i <= pdf.numPages; i++) {
+                                const page = await pdf.getPage(i);
+                                const textContent = await page.getTextContent();
+                                
+                                let rows = [];
+                                textContent.items.forEach(item => {
+                                    let str = item.str.trim();
+                                    if(!str) return; 
+                                    
+                                    let y = Math.round(item.transform[5]);
+                                    let x = Math.round(item.transform[4]);
+                                    
+                                    let row = rows.find(r => Math.abs(r.y - y) <= 4);
+                                    if(row) { row.items.push({x, str}); } 
+                                    else { rows.push({y, items: [{x, str}]}); }
+                                });
+                                
+                                rows.sort((a, b) => b.y - a.y);
+                                rows.forEach(r => {
+                                    r.items.sort((a, b) => a.x - b.x);
+                                    lines.push(r.items.map(i => i.str).join(' '));
+                                });
+                            }
+                            resolve(lines);
+                        } catch(e) {
+                            reject(e);
+                        }
+                    };
+                    fileReader.onerror = () => reject(new Error("Erro na leitura local"));
+                    fileReader.readAsArrayBuffer(file);
+                });
+            },
+
+            processar(lines, obraId) {
+                let extractedItens = [];
+                let currentDesc = "";
+
+                for (let i = 0; i < lines.length; i++) {
+                    // Substitui pipe por espaço e limpa sobras
+                    let line = lines[i].replace(/\|/g, ' ').replace(/\s+/g, ' ').trim(); 
+                    
+                    if (!line || line.includes("QTDE") || line.includes("LARGURA") || line.includes("METRAGEM")) continue;
+                    if (line.includes("COR VIDRO") || line.includes("COR ESQUADRIA") || line.includes("COR ACESSÓRIO")) continue;
+                    
+                    // PASSO 1: Captura a Descrição Limpa (Ignorando se a primeira palavra for um código estranho)
+                    if (line.match(/(JANELA|PORTA|MAXIM|FIXO|VENEZIANA|PORTÃO|QUADRO|ALÇAPÃO)/i)) {
+                        let palavras = line.split(' ');
+                        // Limpa o código (ex: GOLCB-JC4-01) colado na frente da palavra Janela
+                        if (palavras[0].match(/^[A-Z0-9-]{5,20}$/) && !palavras[0].match(/(JANELA|PORTA|MAXIM)/i)) {
+                            line = line.substring(palavras[0].length).trim();
+                        }
+                        currentDesc = line;
+                        continue; 
+                    }
+
+                    // PASSO 2: REGRA DA IMAGEM "Não usar o código"
+                    // Se a linha for apenas um código (Ex: GOLCB-JC4-01), o sistema ignora para não bagunçar a extração.
+                    if (line.match(/^[A-Z0-9-]{5,25}$/) && !line.match(/(JANELA|PORTA|MAXIM|FIXO)/i)) {
+                        continue; 
+                    }
+
+                    // PASSO 3: Identificar a Tabela Física com Matemática
+                    let match = line.match(this.regexMedidas);
+                    if (match) {
+                        let indexDoMatch = match.index;
+                        
+                        let textBefore = line.substring(0, indexDoMatch).trim();
+                        let textAfter = line.substring(indexDoMatch + match[0].length).trim();
+                        
+                        // Captura o TIPO apenas se ele estiver preenchido antes dos números (ex: JA04). Se for vazio, põe "-"
+                        let tipo = "-"; 
+                        if (textBefore && textBefore.length <= 15) {
+                            tipo = textBefore; 
+                        }
+
+                        let qtde = parseInt(match[1]);
+                        let larg = match[2];
+                        let alt = match[3];
+                        let rawId = match[4];
+                        let m2Total = parseFloat(match[5].replace(',', '.'));
+                        
+                        // Captura LOCALIZAÇÃO (O que vem depois dos números)
+                        let local = textAfter || "NÃO INFORMADO";
+                        local = local.replace(/Este relatório.*/i, '').trim(); 
+                        if(!local) local = "NÃO INFORMADO";
+
+                        let finalDesc = currentDesc || "SEM DESCRIÇÃO";
+                        let unitM2 = qtde > 0 ? (m2Total / qtde) : m2Total;
+
+                        // Adiciona as Peças no BD (Dividindo quantidades > 1 de forma independente)
+                        for (let q = 0; q < qtde; q++) {
+                            let finalId = qtde > 1 ? `Item ${rawId}.${q+1}` : `Item ${rawId}`;
+                            
+                            // Gerando IDs únicos internamente no módulo
+                            let idProd = Math.random().toString(36).substr(2, 9);
+                            let idInst = Math.random().toString(36).substr(2, 9);
+                            
+                            extractedItens.push({ id: idProd, obraId: obraId, pid: finalId, tipo: tipo, desc: finalDesc.toUpperCase(), local: local.toUpperCase(), largura: larg, altura: alt, m2: unitM2, etapa: 'Produção', valor: 0, pago: false, data: '', obs: '' });
+                            extractedItens.push({ id: idInst, obraId: obraId, pid: finalId, tipo: tipo, desc: finalDesc.toUpperCase(), local: local.toUpperCase(), largura: larg, altura: alt, m2: unitM2, etapa: 'Instalação', valor: 0, pago: false, data: '', obs: '' });
+                        }
+                        
+                        currentDesc = ""; // Reseta a descrição para a próxima peça
+                    }
+                }
+                return extractedItens;
+            }
+        };
+
+        function renderDashboard() {
             currentView = 'dashboard';
             const container = document.getElementById('app-content');
             
@@ -428,6 +409,7 @@
             
             const obras = db.obras.filter(o => o.terceirizadoId === id);
             
+            // Cálculos Globais do Prestador
             let totalObras = obras.length;
             let obrasPagas100 = 0;
             let valTotalGeral = 0;
@@ -468,7 +450,7 @@
                     </div>
                 </div>
 
-                <!-- DASHBOARD FINANCEIRO GLOBAL DO TERCEIRIZADO -->
+                <!-- Dashboard Financeiro Total -->
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 no-print">
                     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5 border-t-4 border-t-blue-500">
                         <div class="flex items-center gap-3 mb-1">
@@ -497,7 +479,7 @@
                     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5 border-t-4 border-t-red-500 relative overflow-hidden">
                         <div class="flex items-center gap-3 mb-1 relative z-10">
                             <div class="p-1.5 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg"><i class="ph ph-warning-circle text-lg"></i></div>
-                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">Valor em Aberto (Total)</p>
+                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">Valor em Aberto</p>
                         </div>
                         <p class="text-2xl font-bold text-red-500 mt-2 relative z-10">${formatMoney(valEmAberto)}</p>
                         <i class="ph ph-currency-circle-dollar text-6xl text-red-50 dark:text-red-900/20 absolute -bottom-2 -right-2"></i>
@@ -512,7 +494,7 @@
                     <div class="col-span-full bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-dashed border-gray-300 dark:border-gray-600 p-12 text-center">
                         <i class="ph ph-buildings text-5xl text-gray-400 dark:text-gray-500 mb-4"></i>
                         <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Nenhuma obra cadastrada</h3>
-                        <p class="text-gray-500 dark:text-gray-400 mt-1 mb-4">Crie uma obra para importar os PDFs e gerenciar os pagamentos.</p>
+                        <p class="text-gray-500 dark:text-gray-400 mt-1 mb-4">Crie uma obra para gerenciar o PDF e os pagamentos.</p>
                         <button onclick="modalNovaObra()" class="text-brand-600 dark:text-brand-400 font-medium hover:underline">Criar Nova Obra</button>
                     </div>
                 `;
@@ -592,7 +574,7 @@
             container.innerHTML = html;
         }
 
-        //        function modalNovoTerceirizado() {
+        function modalNovoTerceirizado() {
             const html = `
                 <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
                     <h3 class="text-lg font-bold text-gray-900 dark:text-white">Novo Terceirizado</h3>
@@ -679,7 +661,7 @@
             });
         }
 
-        //        function renderObra(id) {
+        function renderObra(id) {
             currentView = 'obra';
             currentObraId = id;
             const o = db.obras.find(x => x.id === id);
@@ -800,7 +782,7 @@
             renderTabelaObra();
         }
 
-        //        async function importarPDF() {
+        async function importarPDF() {
             const fileInput = document.getElementById('pdf-upload');
             if (fileInput.files.length === 0) {
                 customAlert('Atenção', 'Selecione um arquivo PDF primeiro.');
@@ -810,19 +792,19 @@
             const file = fileInput.files[0];
             
             try {
-                // Utilizando o Módulo Integrado
+                // Invoca o Motor Semântico do PDF
                 const linhasExtraidas = await ImportadorPDF.extrairTexto(file);
                 const itensProcessados = ImportadorPDF.processar(linhasExtraidas, currentObraId);
 
                 if (itensProcessados.length === 0) {
-                    customAlert('Aviso', 'O PDF foi lido, mas a tabela de medidas/valores não foi encontrada no formato padrão. Tente o lançamento manual.');
+                    customAlert('Aviso', 'O PDF foi lido, mas a tabela de medidas/valores não foi encontrada no formato padrão.');
                     return;
                 }
 
-                // Injeta no Banco de Dados
+                // Injeta no BD
                 itensProcessados.forEach(item => db.itens.push(item));
 
-                customAlert('Sucesso!', `${itensProcessados.length / 2} peças cadastradas! Itens com múltiplas quantidades foram separados individualmente.`);
+                customAlert('Sucesso!', `${itensProcessados.length / 2} peças cadastradas com sucesso! Itens múltiplos foram divididos inteligentemente.`);
                 atualizarResumoFinancas();
                 renderTabelaObra();
                 
@@ -830,7 +812,7 @@
 
             } catch(e) {
                 console.error(e);
-                customAlert('Erro', 'Falha ao processar o arquivo PDF.');
+                customAlert('Erro', 'Falha ao processar o arquivo PDF. Tente novamente.');
             }
         }
 
@@ -841,8 +823,8 @@
                     <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"><i class="ph ph-x text-xl"></i></button>
                 </div>
                 <div class="p-6">
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Cole aqui o texto enviado pelo prestador informando os valores. O sistema buscará as palavras-chave (ex: "Porta", "Janela") e aplicará os preços detectados.</p>
-                    <textarea id="whatsapp-text" rows="8" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-3 text-sm font-mono bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none resize-none" placeholder="Ex:\nPorta 1 - Produção 350.00 / Instalação 150.00\nJanela - 200,00"></textarea>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Cole aqui o texto enviado pelo prestador informando os valores. O sistema buscará as palavras-chave e aplicará os preços detectados.</p>
+                    <textarea id="whatsapp-text" rows="8" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-3 text-sm font-mono bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none resize-none" placeholder="Ex:\nPorta 1 - Produção 350.00 / Instalação 150.00"></textarea>
                 </div>
                 <div class="px-6 py-4 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-600 flex justify-end gap-3">
                     <button onclick="closeModal()" class="px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg">Cancelar</button>
@@ -862,8 +844,7 @@
             db.itens.forEach(item => {
                 if (item.obraId === currentObraId) {
                     const primeiraPalavra = item.desc.split(' ')[0].toLowerCase();
-                    let cleanPid = item.pid.replace('Item ', '');
-                    cleanPid = cleanPid.split('.')[0]; 
+                    let cleanPid = item.pid.replace('Item ', '').split('.')[0]; 
                     
                     const linhaCorrespondente = linhas.find(l => 
                         l.includes(` ${cleanPid} `) || 
@@ -888,14 +869,14 @@
             if (updatedCount > 0) {
                 customAlert('Concluído', `Valores atualizados em ${updatedCount} etapas baseando-se no texto do WhatsApp!`);
             } else {
-                customAlert('Aviso', 'Não foi possível fazer o cruzamento automático. Verifique se as palavras digitadas no WhatsApp coincidem com o que o PDF extraiu.');
+                customAlert('Aviso', 'Não foi possível fazer o cruzamento automático. Verifique se as palavras coincidem.');
             }
             
             atualizarResumoFinancas();
             renderTabelaObra();
         }
 
-        //        function modalItemManual() {
+        function modalItemManual() {
             const html = `
                 <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
                     <h3 class="text-lg font-bold text-gray-900 dark:text-white">Adicionar Item Manual</h3>
@@ -960,7 +941,7 @@
 
         function salvarItemManual() {
             let pid = document.getElementById('m-pid').value || 'Item S/N';
-            if(!pid.toLowerCase().includes('item')) pid = 'Item ' + pid; 
+            if(!pid.toLowerCase().includes('item')) pid = 'Item ' + pid;
             const local = document.getElementById('m-local').value.toUpperCase() || 'NÃO INFORMADO';
             const tipo = document.getElementById('m-tipo').value.toUpperCase() || '-';
             const desc = document.getElementById('m-desc').value.toUpperCase();
@@ -1060,7 +1041,7 @@
             tbody.innerHTML = html;
         }
 
-        //        function atualizarValor(id, val) {
+        function atualizarValor(id, val) {
             const item = db.itens.find(i => i.id === id);
             item.valor = parseFloat(val) || 0;
             atualizarResumoFinancas();
